@@ -3,4 +3,6 @@ export interface Element {
   name: string
   color: string
   shader?: string
+  description?: string
+  wikipediaUrl?: string
 }

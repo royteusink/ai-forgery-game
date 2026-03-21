@@ -19,5 +19,11 @@ export async function combineElements(a: Element, b: Element): Promise<Element> 
     registerShader(data.id, data.shader)
   }
 
-  return { id: data.id, name: data.name, color: data.color }
+  return {
+    id: data.id,
+    name: data.name,
+    color: data.color,
+    description: data.description,
+    wikipediaUrl: data.wikipediaUrl,
+  }
 }

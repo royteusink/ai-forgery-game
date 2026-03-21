@@ -200,6 +200,63 @@ export class GameUI {
     })
   }
 
+  showElementInfo(element: Element): void {
+    this.stopMiniScene()
+    this.resultOverlay.style.display = 'flex'
+    this.resultOverlay.innerHTML = `
+      <div class="info-card">
+        <div class="info-header">
+          <div class="info-cube-container"></div>
+          <div class="info-title">${element.name}</div>
+        </div>
+        <div class="info-image-container" style="display:none"><img class="info-image" alt="${element.name}" /></div>
+        ${element.description ? `<p class="info-description">${element.description}</p>` : '<p class="info-description" style="color:#64748b">Geen beschrijving beschikbaar.</p>'}
+        ${element.wikipediaUrl ? `<a class="info-wiki-link" href="${element.wikipediaUrl}" target="_blank" rel="noopener noreferrer">Bekijk op Wikipedia &rarr;</a>` : ''}
+        <button class="result-close">Sluiten</button>
+      </div>
+    `
+
+    const cubeContainer = this.resultOverlay.querySelector('.info-cube-container') as HTMLElement
+    this.startMiniScene(cubeContainer, element)
+
+    // Haal afbeelding op via Wikipedia REST API
+    if (element.wikipediaUrl) {
+      this.fetchWikiImage(element.wikipediaUrl).then((imageUrl) => {
+        if (imageUrl) {
+          const container = this.resultOverlay.querySelector('.info-image-container') as HTMLElement
+          const img = container.querySelector('.info-image') as HTMLImageElement
+          img.src = imageUrl
+          img.onload = () => { container.style.display = '' }
+        }
+      })
+    }
+
+    const closeModal = () => {
+      this.stopMiniScene()
+      this.resultOverlay.style.display = 'none'
+    }
+    this.resultOverlay.querySelector('.result-close')?.addEventListener('click', closeModal)
+    this.resultOverlay.addEventListener('click', (e) => {
+      if (e.target === this.resultOverlay) closeModal()
+    })
+  }
+
+  private async fetchWikiImage(wikipediaUrl: string): Promise<string | null> {
+    try {
+      // Extract lang and title from URL: https://nl.wikipedia.org/wiki/Water
+      const url = new URL(wikipediaUrl)
+      const lang = url.hostname.split('.')[0]
+      const title = decodeURIComponent(url.pathname.replace('/wiki/', ''))
+      const apiUrl = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`
+      const res = await fetch(apiUrl)
+      if (!res.ok) return null
+      const data = await res.json()
+      return data.thumbnail?.source ?? data.originalimage?.source ?? null
+    } catch {
+      return null
+    }
+  }
+
   private showError(msg: string): void {
     this.resultOverlay.style.display = 'flex'
     this.resultOverlay.innerHTML = `
@@ -368,6 +425,72 @@ export class GameUI {
         border-radius: 8px;
       }
       .result-close:hover { background: rgba(255,255,255,0.15); }
+      .info-card {
+        background: #1e293b;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 16px;
+        padding: 32px;
+        text-align: center;
+        min-width: 320px;
+        max-width: 420px;
+      }
+      .info-header {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      .info-title {
+        font-size: 28px;
+        font-weight: 700;
+        color: #f1f5f9;
+      }
+      .info-image-container {
+        margin-bottom: 16px;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.08);
+        aspect-ratio: 16 / 9;
+        background: rgba(255,255,255,0.03);
+      }
+      .info-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .info-description {
+        font-size: 14px;
+        line-height: 1.6;
+        color: #cbd5e1;
+        margin: 0 0 16px 0;
+        text-align: left;
+      }
+      .info-wiki-link {
+        display: inline-block;
+        margin-bottom: 20px;
+        padding: 8px 20px;
+        background: rgba(59,130,246,0.15);
+        color: #60a5fa;
+        border: 1px solid rgba(59,130,246,0.3);
+        border-radius: 8px;
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.15s;
+      }
+      .info-wiki-link:hover {
+        background: rgba(59,130,246,0.25);
+        color: #93bbfc;
+      }
+      .info-cube-container {
+        width: 128px;
+        height: 128px;
+      }
+      .info-cube-container canvas {
+        border-radius: 8px;
+      }
     `
     document.head.appendChild(style)
   }

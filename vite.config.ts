@@ -52,16 +52,22 @@ function combineApiPlugin(): Plugin {
           return
         }
 
-        const prompt = `Je bent een creatief element-combinatie spel. Combineer deze twee elementen tot een nieuw element.
+        const prompt = `Je bent een slim element-combinatie spel, geïnspireerd door echte wetenschap, natuur en scheikunde.
 
 Element 1: ${elementA}
 Element 2: ${elementB}
 
-Bedenk een creatief en logisch nieuw element dat ontstaat als je deze twee combineert.
+Bedenk wat er ECHT zou ontstaan als je deze twee combineert. Denk na over scheikunde, natuurkunde, biologie of geologie.
+- Plak NOOIT twee namen aan elkaar (bijv. "goudglas" of "vuurwater" is VERBODEN).
+- Het resultaat moet een echt bestaand materiaal, stof, verschijnsel of concept zijn.
+- Voorbeelden: Water + Vuur = Stoom, Zand + Vuur = Glas, Goud + Glas = Silicium.
+- Wees wetenschappelijk maar ook verrassend en leuk.
 Geef het resultaat als JSON object met exact deze velden:
 - "id": lowercase, geen spaties, kort (bijv. "steam", "lava", "mud")
 - "name": Nederlandse naam met hoofdletter (bijv. "Stoom", "Lava", "Modder")
 - "color": hex kleurcode die past bij het element (bijv. "#c0c0c0")
+- "description": een korte Nederlandse beschrijving van het element (2-3 zinnen, informatief en leuk)
+- "wikipediaUrl": een URL naar de relevante Nederlandse Wikipedia pagina (https://nl.wikipedia.org/wiki/...). Als er geen Nederlandse pagina bestaat, gebruik de Engelse (https://en.wikipedia.org/wiki/...)
 - "shader": GLSL fragment shader body (alleen de code BINNEN void main()) die visueel past bij het element
 
 De shader body heeft toegang tot deze variabelen:

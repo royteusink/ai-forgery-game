@@ -47,7 +47,7 @@ function createCubeMesh(element: Element): THREE.Group {
 
   const labelDiv = document.createElement('div')
   labelDiv.textContent = element.name
-  labelDiv.style.cssText = 'color: #e2e8f0; font-family: system-ui, sans-serif; font-size: 12px; font-weight: 600; text-shadow: 0 1px 4px rgba(0,0,0,0.8); white-space: nowrap; transform: translate(-50%, 0);'
+  labelDiv.style.cssText = 'color: #e2e8f0; font-family: sans-serif; font-size: 12px; font-weight: 600; text-shadow: 0 1px 4px rgba(0,0,0,0.8); white-space: nowrap; transform: translate(-50%, 0);'
   const label = new CSS2DObject(labelDiv)
   label.position.set(0, 0, 0)
 
@@ -90,9 +90,40 @@ function onNewElement(_result: Element): void {
   layoutCubes()
 }
 
-new GameUI(store, onNewElement)
+const ui = new GameUI(store, onNewElement)
 layoutCubes()
 store.onChange(() => layoutCubes())
+
+// Click detection op 3D cubes
+const raycaster = new THREE.Raycaster()
+const mouse = new THREE.Vector2()
+
+renderer.domElement.addEventListener('click', (event) => {
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
+
+  raycaster.setFromCamera(mouse, camera)
+  const meshes: THREE.Mesh[] = []
+  cubeGroup.traverse((child) => {
+    if (child instanceof THREE.Mesh) meshes.push(child)
+  })
+
+  const intersects = raycaster.intersectObjects(meshes)
+  if (intersects.length > 0 && intersects[0]) {
+    // Zoek de parent group om het elementId te vinden
+    let obj: THREE.Object3D | null = intersects[0].object
+    while (obj && !obj.userData['elementId']) {
+      obj = obj.parent
+    }
+    if (obj) {
+      const elementId = obj.userData['elementId'] as string
+      const element = store.findById(elementId)
+      if (element) {
+        ui.showElementInfo(element)
+      }
+    }
+  }
+})
 
 // Animation
 const startTime = performance.now()

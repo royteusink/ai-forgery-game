@@ -167,49 +167,49 @@ const fireFragment = `
   }
 `
 
-// Aarde: gelaagd gesteente met aders
-const earthFragment = `
+// Grind: kiezels met variatie in kleur en ruwheid
+const gravelFragment = `
   ${uniformHeader}
   ${noiseLib}
 
   void main() {
     vec3 lightDir = normalize(vec3(0.8, 1.0, 0.6));
 
-    // Gelaagde rots textuur
-    float rock = fbm(vUv * 6.0, 6);
-    float strata = sin(vUv.y * 20.0 + rock * 5.0) * 0.5 + 0.5;
-    strata = smoothstep(0.3, 0.7, strata);
+    // Kiezelachtige cellen (Voronoi-achtig via noise)
+    vec2 cellUv = vUv * 10.0;
+    float cell = noise(cellUv);
+    float cell2 = noise(cellUv * 1.7 + 3.1);
+    float pebble = smoothstep(0.3, 0.5, cell) * smoothstep(0.3, 0.5, cell2);
 
-    // Kleurvariatie in het gesteente
-    vec3 darkRock = uColor * 0.35;
-    vec3 midRock = uColor * 0.75;
-    vec3 lightRock = uColor * 1.1;
+    // Kleurvariatie per kiezel
+    float colorVar = noise(floor(cellUv) + 0.5);
+    vec3 lightGray = vec3(0.75, 0.73, 0.70);
+    vec3 midGray = uColor;
+    vec3 darkGray = uColor * 0.5;
+    vec3 warmTint = vec3(0.65, 0.55, 0.45);
 
-    vec3 baseColor = mix(darkRock, midRock, rock);
-    baseColor = mix(baseColor, lightRock, strata * 0.4);
+    vec3 baseColor = mix(darkGray, lightGray, colorVar);
+    baseColor = mix(baseColor, warmTint, step(0.7, colorVar) * 0.4);
+    baseColor = mix(baseColor, midGray, pebble * 0.3);
 
-    // Mineraaladers
-    float vein = fbm(vUv * 12.0 + 2.5, 5);
-    float veinLine = smoothstep(0.47, 0.50, vein) * (1.0 - smoothstep(0.50, 0.53, vein));
-    baseColor = mix(baseColor, uColor * 0.2, veinLine * 0.7);
+    // Fijne korrel textuur
+    float grain = noise(vUv * 60.0) * 0.1;
+    baseColor += grain - 0.05;
 
-    // Ruwheid / korrel
-    float grain = noise(vUv * 50.0) * 0.08;
-    baseColor += grain;
-
-    // Langzame subtiele verschuiving (bijna stil)
-    float shift = noise(vUv * 2.0 + uTime * 0.02) * 0.06;
-    baseColor += shift;
+    // Ruwheid variatie
+    float rough = fbm(vUv * 15.0, 4) * 0.12;
+    baseColor -= rough * 0.3;
 
     // Belichting
     float NdotL = max(dot(vWorldNormal, lightDir), 0.0);
-    float diffuse = NdotL * 0.7 + 0.3;
+    float diffuse = NdotL * 0.65 + 0.35;
 
-    // Matte specular (ruw oppervlak)
+    // Matte specular (ruw oppervlak, sommige steentjes glanzen iets)
     vec3 halfDir = normalize(lightDir + vViewDir);
-    float spec = pow(max(dot(vWorldNormal, halfDir), 0.0), 8.0);
+    float spec = pow(max(dot(vWorldNormal, halfDir), 0.0), 12.0);
+    float specMask = smoothstep(0.6, 0.8, cell);
 
-    vec3 col = baseColor * diffuse + vec3(0.15) * spec * 0.15;
+    vec3 col = baseColor * diffuse + vec3(0.2) * spec * specMask * 0.2;
 
     gl_FragColor = vec4(col, 1.0);
   }
@@ -257,6 +257,50 @@ const airFragment = `
     vec3 col = baseColor * diffuse;
     col += rimColor * fresnel * 0.6;
     col += vec3(1.0) * spec * 0.3;
+
+    gl_FragColor = vec4(col, 1.0);
+  }
+`
+
+// Zand: fijne korrels met woestijnachtige kleurtonen
+const sandFragment = `
+  ${uniformHeader}
+  ${noiseLib}
+
+  void main() {
+    vec3 lightDir = normalize(vec3(0.8, 1.0, 0.6));
+
+    // Fijne zandkorrels
+    float grain1 = noise(vUv * 80.0);
+    float grain2 = noise(vUv * 120.0 + 7.3);
+    float grain = grain1 * 0.6 + grain2 * 0.4;
+
+    // Zachtere duinpatronen
+    float dune = fbm(vUv * 3.0 + vec2(uTime * 0.01, 0.0), 4);
+    float ripple = sin(vUv.x * 30.0 + dune * 8.0 + vUv.y * 5.0) * 0.5 + 0.5;
+    ripple = smoothstep(0.3, 0.7, ripple);
+
+    // Kleurvariatie
+    vec3 lightSand = uColor * 1.2;
+    vec3 darkSand = uColor * 0.65;
+    vec3 warmSand = vec3(0.85, 0.65, 0.4);
+
+    vec3 baseColor = mix(darkSand, lightSand, dune);
+    baseColor = mix(baseColor, warmSand, ripple * 0.15);
+    baseColor += (grain - 0.5) * 0.08;
+
+    // Glinsterende korrels (sommige zandkorrels reflecteren zonlicht)
+    float sparkle = step(0.92, noise(vUv * 200.0 + uTime * 0.5));
+    baseColor += vec3(1.0, 0.95, 0.8) * sparkle * 0.3;
+
+    // Belichting
+    float NdotL = max(dot(vWorldNormal, lightDir), 0.0);
+    float diffuse = NdotL * 0.6 + 0.4;
+
+    vec3 halfDir = normalize(lightDir + vViewDir);
+    float spec = pow(max(dot(vWorldNormal, halfDir), 0.0), 16.0);
+
+    vec3 col = baseColor * diffuse + vec3(0.9, 0.85, 0.7) * spec * 0.1;
 
     gl_FragColor = vec4(col, 1.0);
   }
@@ -358,7 +402,8 @@ const defaultFragment = `
 const fragmentShaders: Record<string, string> = {
   water: waterFragment,
   fire: fireFragment,
-  earth: earthFragment,
+  gravel: gravelFragment,
+  sand: sandFragment,
   air: airFragment,
   gold: goldFragment,
 }
