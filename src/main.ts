@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
 import { ElementStore } from './elements'
 import { GameUI } from './ui'
+import { createElementMaterial } from './shaders'
 import type { Element } from './types'
 
 // Renderer
@@ -41,11 +42,7 @@ scene.add(cubeGroup)
 const geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8)
 
 function createCubeMesh(element: Element): THREE.Group {
-  const material = new THREE.MeshPhongMaterial({
-    color: new THREE.Color(element.color),
-    shininess: 120,
-    specular: 0x444444,
-  })
+  const material = createElementMaterial(element.id, element.color)
   const mesh = new THREE.Mesh(geometry, material)
 
   const labelDiv = document.createElement('div')
@@ -98,18 +95,25 @@ layoutCubes()
 store.onChange(() => layoutCubes())
 
 // Animation
+const startTime = performance.now()
+
 function animate(): void {
   requestAnimationFrame(animate)
+  const elapsed = (performance.now() - startTime) / 1000
 
   // Draai de hele cirkel langzaam rond
   cubeGroup.rotation.z += 0.004
 
-  // Alleen de mesh laten roteren, niet het label
+  // Alleen de mesh laten roteren, niet het label + shader time updaten
   cubeGroup.children.forEach((group) => {
-    const mesh = group.children.find((c) => c instanceof THREE.Mesh)
+    const mesh = group.children.find((c) => c instanceof THREE.Mesh) as THREE.Mesh | undefined
     if (mesh) {
-      mesh.rotation.x += 0.008
-      mesh.rotation.y += 0.012
+      mesh.rotation.x += 0.005
+      mesh.rotation.y += 0.001
+      const mat = mesh.material as THREE.ShaderMaterial
+      if (mat.uniforms?.['uTime']) {
+        mat.uniforms['uTime'].value = elapsed
+      }
     }
   })
 

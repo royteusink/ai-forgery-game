@@ -40,7 +40,13 @@ Antwoord ALLEEN met het JSON object, geen andere tekst.`
 
         try {
           const result = await new Promise<string>((resolve, reject) => {
-            execFile('claude', ['-p', prompt, '--output-format', 'text'], { timeout: 30000 }, (err, stdout, stderr) => {
+            execFile('claude', [
+              '-p',
+              prompt,
+              '--model', 'haiku',
+              '--output-format',
+              'text'
+            ], { timeout: 30000 }, (err, stdout, stderr) => {
               if (err) reject(new Error(stderr || err.message))
               else resolve(stdout.trim())
             })
