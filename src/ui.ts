@@ -1,6 +1,8 @@
+import * as THREE from 'three'
 import type { Element } from './types'
 import { ElementStore } from './elements'
 import { combineElements } from './api'
+import { createElementMaterial } from './shaders'
 
 export class GameUI {
   private store: ElementStore
@@ -8,6 +10,8 @@ export class GameUI {
   private container: HTMLDivElement
   private resultOverlay: HTMLDivElement
   private onCombine: (result: Element) => void
+  private miniRenderer: THREE.WebGLRenderer | null = null
+  private miniAnimId: number | null = null
 
   constructor(store: ElementStore, onCombine: (result: Element) => void) {
     this.store = store
@@ -114,6 +118,57 @@ export class GameUI {
     }
   }
 
+  private stopMiniScene(): void {
+    if (this.miniAnimId !== null) {
+      cancelAnimationFrame(this.miniAnimId)
+      this.miniAnimId = null
+    }
+    if (this.miniRenderer) {
+      this.miniRenderer.dispose()
+      this.miniRenderer = null
+    }
+  }
+
+  private startMiniScene(container: HTMLElement, element: Element): void {
+    this.stopMiniScene()
+
+    const size = 128
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+    renderer.setSize(size, size)
+    renderer.setPixelRatio(window.devicePixelRatio)
+    renderer.setClearColor(0x000000, 0)
+    container.appendChild(renderer.domElement)
+    this.miniRenderer = renderer
+
+    const scene = new THREE.Scene()
+    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 10)
+    camera.position.set(0, 0, 3)
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.3)
+    scene.add(ambientLight)
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2)
+    dirLight.position.set(5, 5, 5)
+    scene.add(dirLight)
+
+    const geometry = new THREE.BoxGeometry(1, 1, 1)
+    const material = createElementMaterial(element.id, element.color)
+    const mesh = new THREE.Mesh(geometry, material)
+    scene.add(mesh)
+
+    const startTime = performance.now()
+    const animate = () => {
+      this.miniAnimId = requestAnimationFrame(animate)
+      const elapsed = (performance.now() - startTime) / 1000
+      mesh.rotation.x += 0.008
+      mesh.rotation.y += 0.012
+      if (material.uniforms?.['uTime']) {
+        material.uniforms['uTime'].value = elapsed
+      }
+      renderer.render(scene, camera)
+    }
+    animate()
+  }
+
   private showResult(a: Element, b: Element, result: Element): void {
     this.resultOverlay.style.display = 'flex'
     this.resultOverlay.innerHTML = `
@@ -125,17 +180,23 @@ export class GameUI {
           <span class="result-op">=</span>
         </div>
         <div class="result-new">
-          <div class="element-cube large" style="background: ${result.color}"></div>
+          <div class="result-cube-container"></div>
           <div class="result-name">${result.name}</div>
         </div>
         <button class="result-close">OK</button>
       </div>
     `
-    this.resultOverlay.querySelector('.result-close')?.addEventListener('click', () => {
+
+    const cubeContainer = this.resultOverlay.querySelector('.result-cube-container') as HTMLElement
+    this.startMiniScene(cubeContainer, result)
+
+    const closeModal = () => {
+      this.stopMiniScene()
       this.resultOverlay.style.display = 'none'
-    })
+    }
+    this.resultOverlay.querySelector('.result-close')?.addEventListener('click', closeModal)
     this.resultOverlay.addEventListener('click', (e) => {
-      if (e.target === this.resultOverlay) this.resultOverlay.style.display = 'none'
+      if (e.target === this.resultOverlay) closeModal()
     })
   }
 
@@ -165,7 +226,7 @@ export class GameUI {
         backdrop-filter: blur(12px);
         border-top: 1px solid rgba(255,255,255,0.1);
         padding: 16px 24px;
-        font-family: system-ui, sans-serif;
+        font-family: sans-serif;
         color: #e2e8f0;
         z-index: 100;
       }
@@ -298,6 +359,13 @@ export class GameUI {
         border-radius: 8px;
         font-size: 14px;
         cursor: pointer;
+      }
+      .result-cube-container {
+        width: 128px;
+        height: 128px;
+      }
+      .result-cube-container canvas {
+        border-radius: 8px;
       }
       .result-close:hover { background: rgba(255,255,255,0.15); }
     `

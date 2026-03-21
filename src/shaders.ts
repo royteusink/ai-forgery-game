@@ -363,6 +363,19 @@ const fragmentShaders: Record<string, string> = {
   gold: goldFragment,
 }
 
+export function registerShader(elementId: string, fragmentBody: string): void {
+  // De AI levert alleen de main() body, wij wrappen het met uniforms en noise lib
+  const fullFragment = `
+    ${uniformHeader}
+    ${noiseLib}
+
+    void main() {
+      ${fragmentBody}
+    }
+  `
+  fragmentShaders[elementId] = fullFragment
+}
+
 export function createElementMaterial(elementId: string, color: string): THREE.ShaderMaterial {
   const fragment = fragmentShaders[elementId] ?? defaultFragment
 

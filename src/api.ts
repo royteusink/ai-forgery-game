@@ -1,4 +1,5 @@
 import type { Element } from './types'
+import { registerShader } from './shaders'
 
 export async function combineElements(a: Element, b: Element): Promise<Element> {
   const response = await fetch('/api/combine', {
@@ -12,5 +13,11 @@ export async function combineElements(a: Element, b: Element): Promise<Element> 
     throw new Error(`Combinatie mislukt: ${error}`)
   }
 
-  return response.json() as Promise<Element>
+  const data: Element & { shader?: string } = await response.json()
+
+  if (data.shader) {
+    registerShader(data.id, data.shader)
+  }
+
+  return { id: data.id, name: data.name, color: data.color }
 }

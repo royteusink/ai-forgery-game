@@ -4,7 +4,6 @@ const STARTER_ELEMENTS: Element[] = [
   { id: 'water', name: 'Water', color: '#3b82f6' },
   { id: 'fire', name: 'Vuur', color: '#ef4444' },
   { id: 'earth', name: 'Aarde', color: '#78350f' },
-  { id: 'air', name: 'Lucht', color: '#e0f2fe' },
   { id: 'gold', name: 'Goud', color: '#d9a926' },
 ]
 
