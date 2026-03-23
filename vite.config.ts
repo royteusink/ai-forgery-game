@@ -25,6 +25,26 @@ function combineApiPlugin(): Plugin {
   return {
     name: 'combine-api',
     configureServer(server) {
+      server.middlewares.use('/api/cache-elements', (_req, res) => {
+        const seen = new Set<string>()
+        const elements: Array<{ id: string; name: string; color: string; description: string; wikipediaUrl: string; shader?: string }> = []
+        for (const value of Object.values(cache) as Array<{ id: string; name: string; color: string; description: string; wikipediaUrl: string; shader?: string }>) {
+          if (!seen.has(value.id)) {
+            seen.add(value.id)
+            elements.push({
+              id: value.id,
+              name: value.name,
+              color: value.color,
+              description: value.description,
+              wikipediaUrl: value.wikipediaUrl,
+              ...(value.shader ? { shader: value.shader } : {}),
+            })
+          }
+        }
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify(elements))
+      })
+
       server.middlewares.use('/api/combine', async (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405

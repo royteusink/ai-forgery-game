@@ -41,9 +41,40 @@ scene.add(cubeGroup)
 
 const geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8)
 
+// Outline shader voor geselecteerde cubes — schaalt vanuit center i.p.v. langs normals
+const outlineMaterial = new THREE.ShaderMaterial({
+  vertexShader: `
+    uniform float uScale;
+    void main() {
+      vec3 pos = position * uScale;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 uOutlineColor;
+    uniform float uOpacity;
+    void main() {
+      gl_FragColor = vec4(uOutlineColor, uOpacity);
+    }
+  `,
+  uniforms: {
+    uScale: { value: 1.1 },
+    uOutlineColor: { value: new THREE.Color(0x00ffff) },
+    uOpacity: { value: 0.9 },
+  },
+  side: THREE.BackSide,
+  transparent: true,
+  depthWrite: false,
+})
+
 function createCubeMesh(element: Element): THREE.Group {
   const material = createElementMaterial(element.id, element.color)
   const mesh = new THREE.Mesh(geometry, material)
+
+  // Outline mesh (onzichtbaar tot geselecteerd)
+  const outline = new THREE.Mesh(geometry, outlineMaterial.clone())
+  outline.visible = false
+  outline.userData['isOutline'] = true
 
   const labelDiv = document.createElement('div')
   labelDiv.textContent = element.name
@@ -53,6 +84,7 @@ function createCubeMesh(element: Element): THREE.Group {
 
   const group = new THREE.Group()
   group.add(mesh)
+  group.add(outline)
   group.add(label)
   group.userData['elementId'] = element.id
   return group
@@ -301,7 +333,11 @@ renderer.domElement.addEventListener('click', (event) => {
       const elementId = obj.userData['elementId'] as string
       const element = store.findById(elementId)
       if (element) {
-        ui.showElementInfo(element)
+        if (event.metaKey) {
+          ui.selectElement(elementId)
+        } else {
+          ui.showElementInfo(element)
+        }
       }
     }
   }
@@ -316,7 +352,7 @@ function animate(): void {
 
   // Draai de hele cirkel langzaam rond (niet tijdens combine animatie)
   if (!combineAnim) {
-    cubeGroup.rotation.z += 0.001
+    cubeGroup.rotation.z += 0.0005
   }
 
   const delta = 1 / 60 // ~60fps
@@ -398,7 +434,7 @@ function animate(): void {
       cube.position.z = origPos.z * (1 - eased)
 
       // Laat de cubes ook sneller om eigen as draaien
-      const mesh = cube.children.find((c) => c instanceof THREE.Mesh) as THREE.Mesh | undefined
+      const mesh = cube.children.find((c) => c instanceof THREE.Mesh && !c.userData['isOutline']) as THREE.Mesh | undefined
       if (mesh) {
         mesh.rotation.x += 0.02 * combineAnim!.speed
         mesh.rotation.y += 0.015 * combineAnim!.speed
@@ -416,9 +452,11 @@ function animate(): void {
   }
 
   // Alleen de mesh laten roteren, niet het label + shader time updaten
+  const selectedIds = ui.getSelectedIds()
   cubeGroup.children.forEach((group) => {
     const g = group as THREE.Group
-    const mesh = g.children.find((c) => c instanceof THREE.Mesh) as THREE.Mesh | undefined
+    const mesh = g.children.find((c) => c instanceof THREE.Mesh && !c.userData['isOutline']) as THREE.Mesh | undefined
+    const outline = g.children.find((c) => c instanceof THREE.Mesh && c.userData['isOutline']) as THREE.Mesh | undefined
 
     // Skip rotatie/hover voor cubes in combine animatie
     const isCombining = combineAnim?.cubes.includes(g)
@@ -431,6 +469,17 @@ function animate(): void {
       const mat = mesh.material as THREE.ShaderMaterial
       if (mat.uniforms?.['uTime']) {
         mat.uniforms['uTime'].value = elapsed
+      }
+    }
+
+    // Outline sync met mesh rotatie en selectie
+    if (outline && mesh) {
+      const isSelected = selectedIds.includes(g.userData['elementId'] as string)
+      outline.visible = isSelected
+      outline.rotation.copy(mesh.rotation)
+      if (isSelected) {
+        const outMat = outline.material as THREE.ShaderMaterial
+        outMat.uniforms['uOpacity']!.value = 0.5 + Math.sin(elapsed * 3) * 0.2
       }
     }
 

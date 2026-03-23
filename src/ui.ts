@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import type { Element } from './types'
 import { ElementStore } from './elements'
-import { combineElements } from './api'
+import { combineElements, fetchCacheElements } from './api'
 import { createElementMaterial } from './shaders'
 
 export class GameUI {
@@ -14,6 +14,7 @@ export class GameUI {
   private onCombineEnd?: () => void
   private miniRenderer: THREE.WebGLRenderer | null = null
   private miniAnimId: number | null = null
+  private gridExpanded = false
 
   constructor(store: ElementStore, onCombine: (result: Element) => void) {
     this.store = store
@@ -42,8 +43,11 @@ export class GameUI {
   private render(): void {
     const elements = this.store.getAll()
     this.container.innerHTML = `
-      <div class="inventory-label">Elementen <span class="inventory-count">(${elements.length})</span></div>
-      <div class="inventory-grid">
+      <div class="inventory-header">
+        <div class="inventory-toggle">${this.gridExpanded ? '▾' : '▸'} Elementen <span class="inventory-count">(${elements.length})</span></div>
+        <button class="load-cache-btn">Laad alles</button>
+      </div>
+      <div class="inventory-grid ${this.gridExpanded ? 'expanded' : 'collapsed'}">
         ${elements.map((el) => this.renderElement(el)).join('')}
       </div>
       <div class="combine-area">
@@ -74,6 +78,15 @@ export class GameUI {
 
     const btn = this.container.querySelector('.combine-btn')
     btn?.addEventListener('click', () => this.doCombine())
+
+    const loadBtn = this.container.querySelector('.load-cache-btn')
+    loadBtn?.addEventListener('click', () => this.loadCacheElements())
+
+    const toggle = this.container.querySelector('.inventory-toggle')
+    toggle?.addEventListener('click', () => {
+      this.gridExpanded = !this.gridExpanded
+      this.render()
+    })
   }
 
   private renderElement(el: Element): string {
@@ -91,7 +104,11 @@ export class GameUI {
     </div>`
   }
 
-  private selectElement(id: string): void {
+  getSelectedIds(): string[] {
+    return this.selected.map((s) => s.id)
+  }
+
+  selectElement(id: string): void {
     const el = this.store.findById(id)
     if (!el) return
 
@@ -102,6 +119,22 @@ export class GameUI {
       this.selected.push(el)
     }
     this.render()
+  }
+
+  private async loadCacheElements(): Promise<void> {
+    const btn = this.container.querySelector('.load-cache-btn') as HTMLButtonElement
+    btn.disabled = true
+    btn.textContent = 'Laden...'
+    try {
+      const elements = await fetchCacheElements()
+      for (const el of elements) {
+        this.store.add(el)
+      }
+    } catch (err) {
+      this.showError(String(err))
+    }
+    btn.disabled = false
+    btn.textContent = 'Laad alles'
   }
 
   private async doCombine(): Promise<void> {
@@ -300,7 +333,7 @@ export class GameUI {
         bottom: 0;
         left: 0;
         right: 0;
-        background: rgba(10, 10, 20, 0.92);
+        background: rgba(10, 10, 20, 0.2);
         backdrop-filter: blur(12px);
         border-top: 1px solid rgba(255,255,255,0.1);
         padding: 16px 24px;
@@ -308,21 +341,51 @@ export class GameUI {
         color: #e2e8f0;
         z-index: 100;
       }
-      .inventory-label {
+      .inventory-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      .load-cache-btn {
+        padding: 4px 12px;
+        background: rgba(255,255,255,0.08);
+        color: #94a3b8;
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 6px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .load-cache-btn:hover:not(:disabled) { background: rgba(255,255,255,0.15); color: #e2e8f0; }
+      .load-cache-btn:disabled { opacity: 0.4; cursor: default; }
+      .inventory-toggle {
         font-size: 13px;
         text-transform: uppercase;
         letter-spacing: 0.1em;
         color: #94a3b8;
-        margin-bottom: 10px;
+        cursor: pointer;
+        user-select: none;
       }
+      .inventory-toggle:hover { color: #e2e8f0; }
       .inventory-count { color: #64748b; }
       .inventory-grid {
         display: flex;
         gap: 10px;
         flex-wrap: wrap;
         margin-bottom: 14px;
-        max-height: 120px;
+        max-height: 60vh;
         overflow-y: auto;
+        transition: max-height 0.25s ease, opacity 0.25s ease;
+      }
+      .inventory-grid.collapsed {
+        max-height: 0;
+        overflow: hidden;
+        margin-bottom: 0;
+        opacity: 0;
+      }
+      .inventory-grid.expanded {
+        opacity: 1;
       }
       .element-card {
         display: flex;

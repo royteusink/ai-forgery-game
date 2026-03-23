@@ -1,6 +1,16 @@
 import type { Element } from './types'
 import { registerShader } from './shaders'
 
+export async function fetchCacheElements(): Promise<Element[]> {
+  const response = await fetch('/api/cache-elements')
+  if (!response.ok) throw new Error('Cache ophalen mislukt')
+  const data: Array<Element & { shader?: string }> = await response.json()
+  for (const el of data) {
+    if (el.shader) registerShader(el.id, el.shader)
+  }
+  return data.map(({ id, name, color, description, wikipediaUrl }) => ({ id, name, color, description, wikipediaUrl }))
+}
+
 export async function combineElements(...elements: Element[]): Promise<Element> {
   const response = await fetch('/api/combine', {
     method: 'POST',
