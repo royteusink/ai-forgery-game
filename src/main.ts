@@ -123,7 +123,7 @@ const spiralTightness = 0.22 // how quickly the spiral expands (lower = tighter)
 
 // Fade-in state voor cubes na combine (by elementId zodat het overleeft na layoutCubes rebuild)
 const fadeInStartTimes = new Map<string, number>() // elementId -> startTime
-const FADE_IN_DURATION = 0.6
+const FADE_IN_DURATION = 1.0
 let fadeInIds: Set<string> = new Set()
 
 let suppressLayout = false
@@ -158,6 +158,14 @@ function layoutCubes(): void {
     if (fadeInIds.has(el.id)) {
       fadeInStartTimes.set(el.id, now)
       group.scale.set(0, 0, 0)
+      // Zet ook alpha op 0 zodat de cube niet zichtbaar is voor de eerste animate frame
+      const fadeMesh = group.children.find((c) => c instanceof THREE.Mesh && !c.userData['isOutline']) as THREE.Mesh | undefined
+      if (fadeMesh) {
+        const mat = fadeMesh.material as THREE.ShaderMaterial
+        if (mat.uniforms?.['uAlpha']) mat.uniforms['uAlpha'].value = 0
+      }
+      const fadeLabel = group.children.find((c) => c instanceof CSS2DObject) as CSS2DObject | undefined
+      if (fadeLabel) fadeLabel.element.style.opacity = '0'
     } else if (fadeInStartTimes.has(el.id)) {
       // Lopende fade-in preserveren na layout rebuild
       const fadeStart = fadeInStartTimes.get(el.id)!
@@ -328,23 +336,21 @@ function endCombineAnimation(newResult?: Element): void {
   flashStartTime = performance.now() / 1000
 
   // Reset posities na flash, met fade-in voor gebruikte elementen + nieuw resultaat
-  const usedIds = combineAnim?.cubes.map((c) => c.userData['elementId'] as string) ?? []
   setTimeout(() => {
     combineAnim = null
+    nonCombineOpacity = 0
     particleEmitTime = 0
     particleSystem.visible = false
 
-    // Alleen fade-in animatie als het resultaat nieuw is
-    const isNew = newResult && !store.findById(newResult.id)
-    if (newResult && isNew) {
+    // Voeg nieuw resultaat toe als het nog niet bestaat
+    if (newResult && !store.findById(newResult.id)) {
       suppressLayout = true
       store.add(newResult)
       suppressLayout = false
-      fadeInIds = new Set([...usedIds, newResult.id])
-    } else {
-      // Resultaat bestaat al — geen fade-in nodig, gewoon terugzetten
-      fadeInIds = new Set()
     }
+
+    // Alle elementen zoomen in en faden in na een combine
+    fadeInIds = new Set(store.getAll().map((el) => el.id))
 
     layoutCubes()
   }, 500)
@@ -481,7 +487,7 @@ function animate(): void {
   }
 
   // Fade non-combine cubes in/out
-  const fadeTarget = combineAnim && !combineAnim.done ? 0 : 1
+  const fadeTarget = combineAnim ? 0 : 1
   nonCombineOpacity += (fadeTarget - nonCombineOpacity) * Math.min(1, 6 * delta)
   if (Math.abs(nonCombineOpacity - fadeTarget) < 0.001) nonCombineOpacity = fadeTarget
 

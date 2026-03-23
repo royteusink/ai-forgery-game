@@ -161,7 +161,7 @@ export class GameUI {
       this.render()
     } catch (err) {
       this.onCombineEnd?.()
-      this.showError(String(err))
+      console.log('Combinatie mislukt:', err)
       btn.disabled = false
       btn.textContent = 'Combineer'
     }
