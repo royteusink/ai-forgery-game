@@ -155,7 +155,7 @@ export class GameUI {
       // Trigger flash + wacht tot die klaar is
       await new Promise<void>((resolve) => {
         this.onCombineEnd?.()
-        setTimeout(resolve, 600)
+        setTimeout(resolve, 1200)
       })
 
       this.store.add(result)

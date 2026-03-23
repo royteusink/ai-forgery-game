@@ -67,6 +67,8 @@ function combineApiPlugin(): Plugin {
 
         const key = cacheKey(elements)
         if (cache[key]) {
+          // Minimale vertraging zodat de combine-animatie kan afspelen
+          await new Promise((r) => setTimeout(r, 4000))
           res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify(cache[key]))
           return

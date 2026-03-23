@@ -121,6 +121,11 @@ function createCubeMesh(element: Element): THREE.Group {
 const spiralSpacing = 1.25 // fixed arc distance between cubes
 const spiralTightness = 0.22 // how quickly the spiral expands (lower = tighter)
 
+// Fade-in state voor cubes na combine
+const fadeIns = new Map<THREE.Group, number>() // group -> startTime
+const FADE_IN_DURATION = 0.6
+let fadeInIds: Set<string> = new Set()
+
 function layoutCubes(): void {
   const elements = store.getAll()
   // Verwijder CSS2D labels uit de DOM voordat we cubes clearen
@@ -132,22 +137,32 @@ function layoutCubes(): void {
   })
   cubeGroup.clear()
 
+  const now = performance.now() / 1000
+
   // Walk the Archimedean spiral r = a*θ, stepping by fixed arc length
-  let angle = 7.8
+  let angle = 2
   elements.forEach((el) => {
-    const mesh = createCubeMesh(el)
+    const group = createCubeMesh(el)
     const radius = spiralTightness * angle
-    mesh.position.set(
+    group.position.set(
       Math.cos(angle) * radius,
       Math.sin(angle) * radius,
       0,
     )
-    cubeGroup.add(mesh)
+    cubeGroup.add(group)
+
+    // Start fade-in voor elementen die net gecombineerd werden
+    if (fadeInIds.has(el.id)) {
+      fadeIns.set(group, now)
+      group.scale.set(0, 0, 0)
+    }
 
     // Next angle: arc length ≈ radius * dθ, so dθ = spacing / radius
     const nextRadius = Math.max(radius, 0.5) // avoid huge jumps at center
     angle += spiralSpacing / nextRadius
   })
+
+  fadeInIds.clear()
 }
 
 // Store & UI
@@ -172,6 +187,7 @@ interface CombineAnim {
 }
 
 let combineAnim: CombineAnim | null = null
+let nonCombineOpacity = 1 // 0 = volledig uitgevlakt, 1 = zichtbaar
 
 // Continue radial particle emitter (200 witte particles, 2s delay, per-particle lifespan)
 const PARTICLE_COUNT = 200
@@ -250,10 +266,22 @@ scene.add(particleSystem)
 
 let particleEmitTime = 0 // wanneer de emitter activeert (absolute tijd)
 
-// Flash overlay
-const flashOverlay = document.createElement('div')
-flashOverlay.style.cssText = 'position:fixed;inset:0;background:white;opacity:0;pointer-events:none;z-index:150;transition:opacity 0.15s ease-out;'
-document.body.appendChild(flashOverlay)
+// Flash quad (rendered in canvas)
+const flashScene = new THREE.Scene()
+const flashCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
+const flashMaterial = new THREE.ShaderMaterial({
+  uniforms: { uOpacity: { value: 0 } },
+  vertexShader: `void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }`,
+  fragmentShader: `
+    uniform float uOpacity;
+    void main() { gl_FragColor = vec4(1.0, 1.0, 1.0, uOpacity); }
+  `,
+  transparent: true,
+  depthWrite: false,
+})
+flashScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), flashMaterial))
+let flashStartTime = 0
+const FLASH_DURATION = 0.5
 
 function startCombineAnimation(elementIds: string[]): void {
   const cubes: THREE.Group[] = []
@@ -287,19 +315,16 @@ function endCombineAnimation(): void {
     combineAnim.done = true
   }
 
-  // Witte flash
-  flashOverlay.style.transition = 'none'
-  flashOverlay.style.opacity = '1'
-  requestAnimationFrame(() => {
-    flashOverlay.style.transition = 'opacity 0.5s ease-out'
-    flashOverlay.style.opacity = '0'
-  })
+  // Witte flash in canvas
+  flashStartTime = performance.now() / 1000
 
-  // Reset posities na flash
+  // Reset posities na flash, met fade-in voor gebruikte elementen
+  const usedIds = combineAnim?.cubes.map((c) => c.userData['elementId'] as string) ?? []
   setTimeout(() => {
     combineAnim = null
     particleEmitTime = 0
     particleSystem.visible = false
+    fadeInIds = new Set(usedIds)
     layoutCubes()
   }, 500)
 }
@@ -434,6 +459,11 @@ function animate(): void {
     particleSystem.visible = false
   }
 
+  // Fade non-combine cubes in/out
+  const fadeTarget = combineAnim && !combineAnim.done ? 0 : 1
+  nonCombineOpacity += (fadeTarget - nonCombineOpacity) * Math.min(1, 6 * delta)
+  if (Math.abs(nonCombineOpacity - fadeTarget) < 0.001) nonCombineOpacity = fadeTarget
+
   // Combine animatie updaten
   if (combineAnim && !combineAnim.done) {
     const t = elapsed - combineAnim.startTime
@@ -459,7 +489,7 @@ function animate(): void {
 
       cube.position.x = origPos.x + (centerX - origPos.x) * eased
       cube.position.y = origPos.y + (centerY - origPos.y) * eased
-      cube.position.z = origPos.z * (1 - eased)
+      cube.position.z = origPos.z * (1 - eased) + eased * 3
 
       // Laat de cubes ook sneller om eigen as draaien
       const mesh = cube.children.find((c) => c instanceof THREE.Mesh && !c.userData['isOutline']) as THREE.Mesh | undefined
@@ -511,21 +541,62 @@ function animate(): void {
       }
     }
 
-    // Smooth hover schaling (niet tijdens combine)
-    if (!isCombining) {
+    // Fade-in animatie (opacity + scale)
+    const fadeStart = fadeIns.get(g)
+    if (fadeStart !== undefined) {
+      const t = Math.min(1, (elapsed - fadeStart) / FADE_IN_DURATION)
+      const eased = t * t * (3 - 2 * t) // smoothstep
+      g.scale.set(eased, eased, eased)
+      if (mesh) {
+        const mat = mesh.material as THREE.ShaderMaterial
+        mat.uniforms['uAlpha']!.value = eased
+      }
+      const lbl = g.children.find((c) => c instanceof CSS2DObject) as CSS2DObject | undefined
+      if (lbl) (lbl.element as HTMLElement).style.opacity = String(eased)
+      if (t >= 1) {
+        fadeIns.delete(g)
+        if (mesh) {
+          const mat = mesh.material as THREE.ShaderMaterial
+          mat.uniforms['uAlpha']!.value = 1
+        }
+      }
+    } else if (!isCombining) {
+      // Smooth hover schaling (niet tijdens combine of fade-in)
       const current = hoverScales.get(g) ?? 0
       const target = g === hoveredGroup ? 1 : 0
       const newVal = current + (target - current) * Math.min(1, hoverSpeed * delta)
       hoverScales.set(g, newVal)
       const scale = 1 + newVal * 0.3 // max 30% groter
       g.scale.set(scale, scale, scale)
+
+      // Fade niet-combinerende cubes uit tijdens combine animatie
+      if (mesh) {
+        const mat = mesh.material as THREE.ShaderMaterial
+        mat.uniforms['uAlpha']!.value = nonCombineOpacity
+      }
+      const lbl = g.children.find((c) => c instanceof CSS2DObject) as CSS2DObject | undefined
+      if (lbl) (lbl.element as HTMLElement).style.opacity = String(nonCombineOpacity)
     }
   })
+
+  // Flash fade-out updaten
+  if (flashStartTime > 0) {
+    const flashElapsed = elapsed - flashStartTime
+    if (flashElapsed < FLASH_DURATION) {
+      flashMaterial.uniforms['uOpacity']!.value = 1 - (flashElapsed / FLASH_DURATION)
+    } else {
+      flashMaterial.uniforms['uOpacity']!.value = 0
+      flashStartTime = 0
+    }
+  }
 
   renderer.autoClear = false
   renderer.clear()
   renderer.render(bgScene, bgCamera)
   renderer.render(scene, camera)
+  if (flashMaterial.uniforms['uOpacity']!.value > 0) {
+    renderer.render(flashScene, flashCamera)
+  }
   labelRenderer.render(scene, camera)
 }
 animate()

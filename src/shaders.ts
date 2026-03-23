@@ -57,6 +57,7 @@ const noiseLib = `
 const uniformHeader = `
   uniform float uTime;
   uniform vec3 uColor;
+  uniform float uAlpha;
   varying vec2 vUv;
   varying vec3 vNormal;
   varying vec3 vWorldNormal;
@@ -617,14 +618,18 @@ export function registerShader(elementId: string, fragmentBody: string): void {
 }
 
 export function createElementMaterial(elementId: string, color: string): THREE.ShaderMaterial {
-  const fragment = fragmentShaders[elementId] ?? defaultFragment
+  // Inject uAlpha multiply voor alle shaders (ook ingebouwde)
+  const rawFragment = fragmentShaders[elementId] ?? defaultFragment
+  const fragment = rawFragment.replace(/}\s*$/, '  gl_FragColor.a *= uAlpha;\n}')
 
   return new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
       uColor: { value: new THREE.Color(color) },
+      uAlpha: { value: 1.0 },
     },
     vertexShader: commonVertex,
     fragmentShader: fragment,
+    transparent: true,
   })
 }
