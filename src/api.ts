@@ -12,11 +12,15 @@ export async function fetchCacheElements(): Promise<Element[]> {
 }
 
 export async function combineElements(...elements: Element[]): Promise<Element> {
-  const response = await fetch('/api/combine', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ elements: elements.map((e) => e.name) }),
-  })
+  // Minimale vertraging zodat de combine-animatie kan afspelen (ook bij cached responses)
+  const [response] = await Promise.all([
+    fetch('/api/combine', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ elements: elements.map((e) => e.name) }),
+    }),
+    new Promise((r) => setTimeout(r, 4000)),
+  ])
 
   if (!response.ok) {
     const error = await response.text()

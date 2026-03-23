@@ -121,12 +121,15 @@ function createCubeMesh(element: Element): THREE.Group {
 const spiralSpacing = 1.25 // fixed arc distance between cubes
 const spiralTightness = 0.22 // how quickly the spiral expands (lower = tighter)
 
-// Fade-in state voor cubes na combine
-const fadeIns = new Map<THREE.Group, number>() // group -> startTime
+// Fade-in state voor cubes na combine (by elementId zodat het overleeft na layoutCubes rebuild)
+const fadeInStartTimes = new Map<string, number>() // elementId -> startTime
 const FADE_IN_DURATION = 0.6
 let fadeInIds: Set<string> = new Set()
 
+let suppressLayout = false
+
 function layoutCubes(): void {
+  if (suppressLayout) return
   const elements = store.getAll()
   // Verwijder CSS2D labels uit de DOM voordat we cubes clearen
   cubeGroup.traverse((child) => {
@@ -153,8 +156,18 @@ function layoutCubes(): void {
 
     // Start fade-in voor elementen die net gecombineerd werden
     if (fadeInIds.has(el.id)) {
-      fadeIns.set(group, now)
+      fadeInStartTimes.set(el.id, now)
       group.scale.set(0, 0, 0)
+    } else if (fadeInStartTimes.has(el.id)) {
+      // Lopende fade-in preserveren na layout rebuild
+      const fadeStart = fadeInStartTimes.get(el.id)!
+      const t = Math.min(1, (now - fadeStart) / FADE_IN_DURATION)
+      if (t < 1) {
+        const eased = t * t * (3 - 2 * t)
+        group.scale.set(eased, eased, eased)
+      } else {
+        fadeInStartTimes.delete(el.id)
+      }
     }
 
     // Next angle: arc length ≈ radius * dθ, so dθ = spacing / radius
@@ -168,11 +181,7 @@ function layoutCubes(): void {
 // Store & UI
 const store = new ElementStore()
 
-function onNewElement(_result: Element): void {
-  layoutCubes()
-}
-
-const ui = new GameUI(store, onNewElement)
+const ui = new GameUI(store)
 layoutCubes()
 store.onChange(() => layoutCubes())
 
@@ -310,7 +319,7 @@ function startCombineAnimation(elementIds: string[]): void {
   particleEmitTime = combineAnim.startTime + 2
 }
 
-function endCombineAnimation(): void {
+function endCombineAnimation(newResult?: Element): void {
   if (combineAnim) {
     combineAnim.done = true
   }
@@ -318,13 +327,25 @@ function endCombineAnimation(): void {
   // Witte flash in canvas
   flashStartTime = performance.now() / 1000
 
-  // Reset posities na flash, met fade-in voor gebruikte elementen
+  // Reset posities na flash, met fade-in voor gebruikte elementen + nieuw resultaat
   const usedIds = combineAnim?.cubes.map((c) => c.userData['elementId'] as string) ?? []
   setTimeout(() => {
     combineAnim = null
     particleEmitTime = 0
     particleSystem.visible = false
-    fadeInIds = new Set(usedIds)
+
+    // Alleen fade-in animatie als het resultaat nieuw is
+    const isNew = newResult && !store.findById(newResult.id)
+    if (newResult && isNew) {
+      suppressLayout = true
+      store.add(newResult)
+      suppressLayout = false
+      fadeInIds = new Set([...usedIds, newResult.id])
+    } else {
+      // Resultaat bestaat al — geen fade-in nodig, gewoon terugzetten
+      fadeInIds = new Set()
+    }
+
     layoutCubes()
   }, 500)
 }
@@ -464,6 +485,13 @@ function animate(): void {
   nonCombineOpacity += (fadeTarget - nonCombineOpacity) * Math.min(1, 6 * delta)
   if (Math.abs(nonCombineOpacity - fadeTarget) < 0.001) nonCombineOpacity = fadeTarget
 
+  // Verberg combine cubes zodra animatie klaar is (wacht op layoutCubes rebuild)
+  if (combineAnim && combineAnim.done) {
+    combineAnim.cubes.forEach((cube) => {
+      cube.visible = false
+    })
+  }
+
   // Combine animatie updaten
   if (combineAnim && !combineAnim.done) {
     const t = elapsed - combineAnim.startTime
@@ -520,7 +548,7 @@ function animate(): void {
     const isCombining = combineAnim?.cubes.includes(g)
 
     if (mesh) {
-      if (!isCombining) {
+      if (!combineAnim) {
         mesh.rotation.x += 0.005
         mesh.rotation.y += 0.001
       }
@@ -541,8 +569,9 @@ function animate(): void {
       }
     }
 
-    // Fade-in animatie (opacity + scale)
-    const fadeStart = fadeIns.get(g)
+    // Fade-in animatie (opacity + scale) — lookup by elementId zodat het overleeft na layout rebuilds
+    const elementId = g.userData['elementId'] as string
+    const fadeStart = fadeInStartTimes.get(elementId)
     if (fadeStart !== undefined) {
       const t = Math.min(1, (elapsed - fadeStart) / FADE_IN_DURATION)
       const eased = t * t * (3 - 2 * t) // smoothstep
@@ -554,7 +583,7 @@ function animate(): void {
       const lbl = g.children.find((c) => c instanceof CSS2DObject) as CSS2DObject | undefined
       if (lbl) (lbl.element as HTMLElement).style.opacity = String(eased)
       if (t >= 1) {
-        fadeIns.delete(g)
+        fadeInStartTimes.delete(elementId)
         if (mesh) {
           const mat = mesh.material as THREE.ShaderMaterial
           mat.uniforms['uAlpha']!.value = 1

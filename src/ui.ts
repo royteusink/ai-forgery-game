@@ -9,16 +9,14 @@ export class GameUI {
   private selected: Element[] = []
   private container: HTMLDivElement
   private resultOverlay: HTMLDivElement
-  private onCombine: (result: Element) => void
   private onCombineStart?: (elementIds: string[]) => void
-  private onCombineEnd?: () => void
+  private onCombineEnd?: (result?: Element) => void
   private miniRenderer: THREE.WebGLRenderer | null = null
   private miniAnimId: number | null = null
   private gridExpanded = false
 
-  constructor(store: ElementStore, onCombine: (result: Element) => void) {
+  constructor(store: ElementStore) {
     this.store = store
-    this.onCombine = onCombine
 
     this.container = document.createElement('div')
     this.container.id = 'inventory'
@@ -35,7 +33,7 @@ export class GameUI {
     store.onChange(() => this.render())
   }
 
-  setCombineCallbacks(onStart: (elementIds: string[]) => void, onEnd: () => void): void {
+  setCombineCallbacks(onStart: (elementIds: string[]) => void, onEnd: (result?: Element) => void): void {
     this.onCombineStart = onStart
     this.onCombineEnd = onEnd
   }
@@ -152,14 +150,12 @@ export class GameUI {
     try {
       const result = await combineElements(...elements)
 
-      // Trigger flash + wacht tot die klaar is
+      // Trigger flash + wacht tot die klaar is (result meegeven zodat store.add in de animatie-flow zit)
       await new Promise<void>((resolve) => {
-        this.onCombineEnd?.()
+        this.onCombineEnd?.(result)
         setTimeout(resolve, 1200)
       })
 
-      this.store.add(result)
-      this.onCombine(result)
       this.showResult(elements, result)
       this.selected = []
       this.render()
@@ -453,6 +449,14 @@ export class GameUI {
       }
       .combine-btn:hover:not(:disabled) { background: #2563eb; }
       .combine-btn:disabled { opacity: 0.3; cursor: default; }
+      @keyframes overlayFadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes cardFadeIn {
+        from { opacity: 0; transform: scale(0.9) translateY(16px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+      }
       #result-overlay {
         position: fixed;
         inset: 0;
@@ -461,6 +465,7 @@ export class GameUI {
         align-items: center;
         justify-content: center;
         z-index: 200;
+        animation: overlayFadeIn 0.3s ease-out;
       }
       .result-card {
         background: #1e293b;
@@ -469,6 +474,7 @@ export class GameUI {
         padding: 32px;
         text-align: center;
         min-width: 280px;
+        animation: cardFadeIn 0.35s ease-out;
       }
       .result-card.error { border-color: #ef4444; }
       .result-formula {
@@ -518,6 +524,7 @@ export class GameUI {
         text-align: center;
         min-width: 320px;
         max-width: 420px;
+        animation: cardFadeIn 0.35s ease-out;
       }
       .info-header {
         display: flex;

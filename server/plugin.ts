@@ -1,0 +1,16 @@
+import type { Plugin } from 'vite'
+import { loadCache } from './cache'
+import { handleCacheElements } from './cache-elements'
+import { handleCombine } from './combine'
+
+export function combineApiPlugin(): Plugin {
+  const cache = loadCache()
+
+  return {
+    name: 'combine-api',
+    configureServer(server) {
+      server.middlewares.use('/api/cache-elements', handleCacheElements(cache))
+      server.middlewares.use('/api/combine', handleCombine(cache))
+    },
+  }
+}
