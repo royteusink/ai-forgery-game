@@ -71,7 +71,7 @@ export class ElementStore {
   private listeners: Array<() => void> = []
 
   getAll(): Element[] {
-    return [...this.elements]
+    return [...this.elements].sort((a, b) => a.name.localeCompare(b.name, 'nl'))
   }
 
   findById(id: string): Element | undefined {

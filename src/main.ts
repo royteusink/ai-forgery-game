@@ -25,7 +25,35 @@ camera.position.set(0, 0, 8)
 
 // Scene
 const scene = new THREE.Scene()
-scene.background = new THREE.Color(0x0a0a14)
+
+// Radial gradient achtergrond (deep space kleuren)
+const bgScene = new THREE.Scene()
+const bgCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
+const bgMaterial = new THREE.ShaderMaterial({
+  depthWrite: false,
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = vec4(position.xy, 0.0, 1.0);
+    }
+  `,
+  fragmentShader: `
+    varying vec2 vUv;
+    void main() {
+      vec2 center = vec2(0.5, 0.5);
+      float dist = length(vUv - center) * 1.4;
+      vec3 core    = vec3(0.06, 0.04, 0.12);  // donker indigo
+      vec3 mid     = vec3(0.03, 0.02, 0.08);  // diep paars
+      vec3 outer   = vec3(0.01, 0.01, 0.03);  // bijna zwart blauw
+      vec3 color = mix(core, mid, smoothstep(0.0, 0.5, dist));
+      color = mix(color, outer, smoothstep(0.4, 1.0, dist));
+      gl_FragColor = vec4(color, 1.0);
+    }
+  `,
+})
+const bgPlane = new THREE.PlaneGeometry(2, 2)
+bgScene.add(new THREE.Mesh(bgPlane, bgMaterial))
 
 // Lighting
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.3)
@@ -39,7 +67,7 @@ scene.add(dirLight)
 const cubeGroup = new THREE.Group()
 scene.add(cubeGroup)
 
-const geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8)
+const geometry = new THREE.BoxGeometry(0.6, 0.6, 0.6)
 
 // Outline shader voor geselecteerde cubes — schaalt vanuit center i.p.v. langs normals
 const outlineMaterial = new THREE.ShaderMaterial({
@@ -474,7 +502,7 @@ function animate(): void {
 
     // Outline sync met mesh rotatie en selectie
     if (outline && mesh) {
-      const isSelected = selectedIds.includes(g.userData['elementId'] as string)
+      const isSelected = !isCombining && selectedIds.includes(g.userData['elementId'] as string)
       outline.visible = isSelected
       outline.rotation.copy(mesh.rotation)
       if (isSelected) {
@@ -494,6 +522,9 @@ function animate(): void {
     }
   })
 
+  renderer.autoClear = false
+  renderer.clear()
+  renderer.render(bgScene, bgCamera)
   renderer.render(scene, camera)
   labelRenderer.render(scene, camera)
 }

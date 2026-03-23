@@ -127,6 +127,7 @@ export class GameUI {
     btn.textContent = 'Laden...'
     try {
       const elements = await fetchCacheElements()
+      elements.sort((a, b) => a.name.localeCompare(b.name, 'nl'))
       for (const el of elements) {
         this.store.add(el)
       }
