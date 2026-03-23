@@ -58,7 +58,8 @@ function createCubeMesh(element: Element): THREE.Group {
   return group
 }
 
-const circleRadius = 2
+const spiralSpacing = 1.25 // fixed arc distance between cubes
+const spiralTightness = 0.22 // how quickly the spiral expands (lower = tighter)
 
 function layoutCubes(): void {
   const elements = store.getAll()
@@ -71,15 +72,21 @@ function layoutCubes(): void {
   })
   cubeGroup.clear()
 
-  elements.forEach((el, i) => {
+  // Walk the Archimedean spiral r = a*θ, stepping by fixed arc length
+  let angle = 7.8
+  elements.forEach((el) => {
     const mesh = createCubeMesh(el)
-    const angle = (i / elements.length) * Math.PI * 2
+    const radius = spiralTightness * angle
     mesh.position.set(
-      Math.cos(angle) * circleRadius,
-      Math.sin(angle) * circleRadius,
+      Math.cos(angle) * radius,
+      Math.sin(angle) * radius,
       0,
     )
     cubeGroup.add(mesh)
+
+    // Next angle: arc length ≈ radius * dθ, so dθ = spacing / radius
+    const nextRadius = Math.max(radius, 0.5) // avoid huge jumps at center
+    angle += spiralSpacing / nextRadius
   })
 }
 
@@ -94,9 +101,184 @@ const ui = new GameUI(store, onNewElement)
 layoutCubes()
 store.onChange(() => layoutCubes())
 
-// Click detection op 3D cubes
+// Combine animatie state
+interface CombineAnim {
+  cubes: THREE.Group[]
+  originalPositions: THREE.Vector3[]
+  startTime: number
+  orbitAngle: number
+  speed: number
+  done: boolean
+}
+
+let combineAnim: CombineAnim | null = null
+
+// Continue radial particle emitter (200 witte particles, 2s delay, per-particle lifespan)
+const PARTICLE_COUNT = 200
+const particleGeometry = new THREE.BufferGeometry()
+const positions = new Float32Array(PARTICLE_COUNT * 3)
+const sizes = new Float32Array(PARTICLE_COUNT)
+const alphas = new Float32Array(PARTICLE_COUNT)
+
+// Per-particle state
+const particleDirections = new Float32Array(PARTICLE_COUNT * 3)
+const particleSpeeds = new Float32Array(PARTICLE_COUNT)
+const particleLifespans = new Float32Array(PARTICLE_COUNT) // max leeftijd in seconden
+const particleAges = new Float32Array(PARTICLE_COUNT) // huidige leeftijd
+const particleBaseSizes = new Float32Array(PARTICLE_COUNT)
+
+function randomizeParticle(i: number, stagger: boolean): void {
+  // Random richting op een bol
+  const theta = Math.random() * Math.PI * 2
+  const phi = Math.acos(2 * Math.random() - 1)
+  particleDirections[i * 3] = Math.sin(phi) * Math.cos(theta)
+  particleDirections[i * 3 + 1] = Math.sin(phi) * Math.sin(theta)
+  particleDirections[i * 3 + 2] = Math.cos(phi)
+
+  particleSpeeds[i] = 1.5 + Math.random() * 3.5
+  particleLifespans[i] = 0.8 + Math.random() * 1.5 // leeft 0.8–2.3 seconden
+  particleAges[i] = stagger ? -Math.random() * 1.0 : 0 // stagger bij init
+  particleBaseSizes[i] = 0.02 + Math.random() * 0.08
+
+  positions[i * 3] = 0
+  positions[i * 3 + 1] = 0
+  positions[i * 3 + 2] = 0
+}
+
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  randomizeParticle(i, true)
+  alphas[i] = 0
+}
+
+particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+particleGeometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1))
+particleGeometry.setAttribute('alpha', new THREE.BufferAttribute(alphas, 1))
+
+const particleMaterial = new THREE.ShaderMaterial({
+  uniforms: {
+    uPixelRatio: { value: renderer.getPixelRatio() },
+  },
+  vertexShader: `
+    attribute float size;
+    attribute float alpha;
+    uniform float uPixelRatio;
+    varying float vAlpha;
+    void main() {
+      vAlpha = alpha;
+      vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = size * uPixelRatio * (300.0 / -mvPosition.z);
+      gl_Position = projectionMatrix * mvPosition;
+    }
+  `,
+  fragmentShader: `
+    varying float vAlpha;
+    void main() {
+      float dist = length(gl_PointCoord - vec2(0.5));
+      if (dist > 0.5) discard;
+      float soft = 1.0 - smoothstep(0.1, 0.5, dist);
+      gl_FragColor = vec4(1.0, 1.0, 1.0, soft * vAlpha);
+    }
+  `,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+})
+
+const particleSystem = new THREE.Points(particleGeometry, particleMaterial)
+particleSystem.visible = false
+scene.add(particleSystem)
+
+let particleEmitTime = 0 // wanneer de emitter activeert (absolute tijd)
+
+// Flash overlay
+const flashOverlay = document.createElement('div')
+flashOverlay.style.cssText = 'position:fixed;inset:0;background:white;opacity:0;pointer-events:none;z-index:150;transition:opacity 0.15s ease-out;'
+document.body.appendChild(flashOverlay)
+
+function startCombineAnimation(elementIds: string[]): void {
+  const cubes: THREE.Group[] = []
+  const originalPositions: THREE.Vector3[] = []
+
+  cubeGroup.children.forEach((child) => {
+    const g = child as THREE.Group
+    if (elementIds.includes(g.userData['elementId'] as string)) {
+      cubes.push(g)
+      originalPositions.push(g.position.clone())
+    }
+  })
+
+  if (cubes.length < 2) return
+
+  combineAnim = {
+    cubes,
+    originalPositions,
+    startTime: performance.now() / 1000,
+    orbitAngle: 0,
+    speed: 1,
+    done: false,
+  }
+
+  // Particles starten 2 seconden na combine start
+  particleEmitTime = combineAnim.startTime + 2
+}
+
+function endCombineAnimation(): void {
+  if (combineAnim) {
+    combineAnim.done = true
+  }
+
+  // Witte flash
+  flashOverlay.style.transition = 'none'
+  flashOverlay.style.opacity = '1'
+  requestAnimationFrame(() => {
+    flashOverlay.style.transition = 'opacity 0.5s ease-out'
+    flashOverlay.style.opacity = '0'
+  })
+
+  // Reset posities na flash
+  setTimeout(() => {
+    combineAnim = null
+    particleEmitTime = 0
+    particleSystem.visible = false
+    layoutCubes()
+  }, 500)
+}
+
+ui.setCombineCallbacks(startCombineAnimation, endCombineAnimation)
+
+// Hover detection op 3D cubes
 const raycaster = new THREE.Raycaster()
 const mouse = new THREE.Vector2()
+let hoveredGroup: THREE.Group | null = null
+const hoverScales = new Map<THREE.Group, number>() // 0 = normal, 1 = fully hovered
+const hoverSpeed = 5 // snelheid van de transitie
+
+renderer.domElement.addEventListener('mousemove', (event) => {
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
+
+  raycaster.setFromCamera(mouse, camera)
+  const meshes: THREE.Mesh[] = []
+  cubeGroup.traverse((child) => {
+    if (child instanceof THREE.Mesh) meshes.push(child)
+  })
+
+  const intersects = raycaster.intersectObjects(meshes)
+  let newHovered: THREE.Group | null = null
+
+  if (intersects.length > 0 && intersects[0]) {
+    let obj: THREE.Object3D | null = intersects[0].object
+    while (obj && !obj.userData['elementId']) {
+      obj = obj.parent
+    }
+    if (obj) newHovered = obj as THREE.Group
+  }
+
+  if (newHovered !== hoveredGroup) {
+    renderer.domElement.style.cursor = newHovered ? 'pointer' : 'default'
+    hoveredGroup = newHovered
+  }
+})
 
 renderer.domElement.addEventListener('click', (event) => {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1
@@ -132,19 +314,134 @@ function animate(): void {
   requestAnimationFrame(animate)
   const elapsed = (performance.now() - startTime) / 1000
 
-  // Draai de hele cirkel langzaam rond
-  cubeGroup.rotation.z += 0.004
+  // Draai de hele cirkel langzaam rond (niet tijdens combine animatie)
+  if (!combineAnim) {
+    cubeGroup.rotation.z += 0.001
+  }
+
+  const delta = 1 / 60 // ~60fps
+
+  // Continue particle emitter (activeert 2s na combine start)
+  if (combineAnim && particleEmitTime > 0 && elapsed > particleEmitTime) {
+    particleSystem.visible = true
+    const posAttr = particleGeometry.getAttribute('position') as THREE.BufferAttribute
+    const sizeAttr = particleGeometry.getAttribute('size') as THREE.BufferAttribute
+    const alphaAttr = particleGeometry.getAttribute('alpha') as THREE.BufferAttribute
+
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      particleAges[i] = particleAges[i]! + delta
+
+      // Respawn als lifespan verlopen is
+      if (particleAges[i]! >= particleLifespans[i]!) {
+        randomizeParticle(i, false)
+      }
+
+      const age = particleAges[i]!
+      if (age < 0) {
+        // Nog in stagger delay
+        posAttr.setXYZ(i, 0, 0, 0)
+        alphaAttr.setX(i, 0)
+        sizeAttr.setX(i, 0)
+        continue
+      }
+
+      const life = age / particleLifespans[i]! // 0..1 genormaliseerd
+      const speed = particleSpeeds[i]!
+      const dist = speed * age
+
+      const dx = particleDirections[i * 3]!
+      const dy = particleDirections[i * 3 + 1]!
+      const dz = particleDirections[i * 3 + 2]!
+      posAttr.setXYZ(i, dx * dist, dy * dist, dz * dist)
+
+      // Fade in snel, fade out geleidelijk
+      const fadeIn = Math.min(1, age / 0.15)
+      const fadeOut = 1 - life * life // quadratic fade out
+      alphaAttr.setX(i, fadeIn * fadeOut * 0.9)
+
+      // Grootte krimpt naar het einde van de lifespan
+      sizeAttr.setX(i, particleBaseSizes[i]! * (1 - life * 0.6))
+    }
+
+    posAttr.needsUpdate = true
+    sizeAttr.needsUpdate = true
+    alphaAttr.needsUpdate = true
+  } else {
+    particleSystem.visible = false
+  }
+
+  // Combine animatie updaten
+  if (combineAnim && !combineAnim.done) {
+    const t = elapsed - combineAnim.startTime
+    // Snelheid neemt steeds meer toe
+    combineAnim.speed = Math.min(1 + t * t * 0.8, 6)
+    combineAnim.orbitAngle += combineAnim.speed * delta * 3
+
+    // Orbit radius krimpt over tijd (van 1.2 naar 0.3)
+    const orbitRadius = Math.max(0.3, 1.2 - t * 0.15)
+
+    combineAnim.cubes.forEach((cube, i) => {
+      const baseAngle = (i / combineAnim!.cubes.length) * Math.PI * 2
+      const angle = baseAngle + combineAnim!.orbitAngle
+
+      // Lerp naar het midden + orbit
+      const centerX = Math.cos(angle) * orbitRadius
+      const centerY = Math.sin(angle) * orbitRadius
+      const origPos = combineAnim!.originalPositions[i]!
+
+      // Smooth overgang naar orbit (eerste 1.5 seconde)
+      const blend = Math.min(1, t / 1.5)
+      const eased = blend * blend * (3 - 2 * blend) // smoothstep
+
+      cube.position.x = origPos.x + (centerX - origPos.x) * eased
+      cube.position.y = origPos.y + (centerY - origPos.y) * eased
+      cube.position.z = origPos.z * (1 - eased)
+
+      // Laat de cubes ook sneller om eigen as draaien
+      const mesh = cube.children.find((c) => c instanceof THREE.Mesh) as THREE.Mesh | undefined
+      if (mesh) {
+        mesh.rotation.x += 0.02 * combineAnim!.speed
+        mesh.rotation.y += 0.015 * combineAnim!.speed
+      }
+
+      // Verberg label tijdens animatie
+      const label = cube.children.find((c) => c instanceof CSS2DObject) as CSS2DObject | undefined
+      if (label) label.visible = false
+
+      // Pingpong scale: pulseert tussen 0.3 en 0.5
+      const pulse = Math.sin(combineAnim!.orbitAngle * 2 + i * Math.PI * 0.667) * 0.5 + 0.5
+      const s = 0.3 + pulse * 0.2
+      cube.scale.set(s, s, s)
+    })
+  }
 
   // Alleen de mesh laten roteren, niet het label + shader time updaten
   cubeGroup.children.forEach((group) => {
-    const mesh = group.children.find((c) => c instanceof THREE.Mesh) as THREE.Mesh | undefined
+    const g = group as THREE.Group
+    const mesh = g.children.find((c) => c instanceof THREE.Mesh) as THREE.Mesh | undefined
+
+    // Skip rotatie/hover voor cubes in combine animatie
+    const isCombining = combineAnim?.cubes.includes(g)
+
     if (mesh) {
-      mesh.rotation.x += 0.005
-      mesh.rotation.y += 0.001
+      if (!isCombining) {
+        mesh.rotation.x += 0.005
+        mesh.rotation.y += 0.001
+      }
       const mat = mesh.material as THREE.ShaderMaterial
       if (mat.uniforms?.['uTime']) {
         mat.uniforms['uTime'].value = elapsed
       }
+    }
+
+    // Smooth hover schaling (niet tijdens combine)
+    if (!isCombining) {
+      const current = hoverScales.get(g) ?? 0
+      const target = g === hoveredGroup ? 1 : 0
+      const newVal = current + (target - current) * Math.min(1, hoverSpeed * delta)
+      hoverScales.set(g, newVal)
+      const scale = 1 + newVal * 0.3 // max 30% groter
+      g.scale.set(scale, scale, scale)
     }
   })
 

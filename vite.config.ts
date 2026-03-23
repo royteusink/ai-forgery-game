@@ -15,8 +15,8 @@ function saveCache(cache: Record<string, unknown>): void {
   writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2))
 }
 
-function cacheKey(a: string, b: string): string {
-  return [a, b].sort().join('+')
+function cacheKey(elements: string[]): string {
+  return [...elements].sort().join('+')
 }
 
 function combineApiPlugin(): Plugin {
@@ -37,30 +37,32 @@ function combineApiPlugin(): Plugin {
           chunks.push(chunk as Buffer)
         }
         const body = JSON.parse(Buffer.concat(chunks).toString())
-        const { elementA, elementB } = body
+        const elements: string[] = body.elements
 
-        if (!elementA || !elementB) {
+        if (!elements || elements.length < 2 || elements.length > 3) {
           res.statusCode = 400
-          res.end('elementA en elementB zijn verplicht')
+          res.end('elements array met 2 of 3 elementen is verplicht')
           return
         }
 
-        const key = cacheKey(elementA, elementB)
+        const key = cacheKey(elements)
         if (cache[key]) {
           res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify(cache[key]))
           return
         }
 
+        const elementList = elements.map((e, i) => `Element ${i + 1}: ${e}`).join('\n')
+        const count = elements.length === 2 ? 'twee' : 'drie'
+
         const prompt = `Je bent een slim element-combinatie spel, geïnspireerd door echte wetenschap, natuur en scheikunde.
 
-Element 1: ${elementA}
-Element 2: ${elementB}
+${elementList}
 
-Bedenk wat er ECHT zou ontstaan als je deze twee combineert. Denk na over scheikunde, natuurkunde, biologie of geologie.
-- Plak NOOIT twee namen aan elkaar (bijv. "goudglas" of "vuurwater" is VERBODEN).
+Bedenk wat er ECHT zou ontstaan als je deze ${count} combineert. Denk na over scheikunde, natuurkunde, biologie of geologie.
+- Plak NOOIT twee of drie namen aan elkaar (bijv. "goudglas" of "vuurwater" is VERBODEN).
 - Het resultaat moet een echt bestaand materiaal, stof, verschijnsel of concept zijn.
-- Voorbeelden: Water + Vuur = Stoom, Zand + Vuur = Glas, Goud + Glas = Silicium.
+- Voorbeelden: Water + Vuur = Stoom, Zand + Vuur + Grind = Beton, Goud + Vuur + Zand = Juweel.
 - Wees wetenschappelijk maar ook verrassend en leuk.
 Geef het resultaat als JSON object met exact deze velden:
 - "id": lowercase, geen spaties, kort (bijv. "steam", "lava", "mud")
@@ -93,7 +95,7 @@ Antwoord ALLEEN met het JSON object, geen andere tekst.`
               '-p', prompt,
               '--model', 'haiku',
               '--output-format', 'text',
-            ], { timeout: 30000, stdio: ['pipe', 'pipe', 'pipe'] })
+            ], { timeout: 80000, stdio: ['pipe', 'pipe', 'pipe'] })
 
             proc.stdin.end()
 

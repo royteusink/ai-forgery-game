@@ -36,6 +36,34 @@ const STARTER_ELEMENTS: Element[] = [
     description: 'Goud is een zacht, glanzend edelmetaal met atoomnummer 79. Het wordt al duizenden jaren gebruikt als sieraad en betaalmiddel vanwege zijn zeldzaamheid en schoonheid.',
     wikipediaUrl: 'https://nl.wikipedia.org/wiki/Goud',
   },
+  {
+    id: 'wood',
+    name: 'Hout',
+    color: '#8B5E3C',
+    description: 'Hout is een natuurlijk materiaal dat wordt gewonnen uit bomen. Het wordt al eeuwenlang gebruikt voor constructie, meubels en brandstof.',
+    wikipediaUrl: 'https://nl.wikipedia.org/wiki/Hout',
+  },
+  {
+    id: 'crystal',
+    name: 'Kristal',
+    color: '#a78bfa',
+    description: 'Kristal is een vaste stof waarvan de atomen in een geordend, herhalend patroon zijn gerangschikt. Kristallen komen voor in mineralen, edelstenen en ijs.',
+    wikipediaUrl: 'https://nl.wikipedia.org/wiki/Kwarts',
+  },
+  {
+    id: 'quartz',
+    name: 'Kwarts',
+    color: '#e8dcc8',
+    description: 'Kwarts is een van de meest voorkomende mineralen op aarde. Het is opgebouwd uit silicium en zuurstof (SiO₂) en komt voor in vele varianten zoals bergkristal, amethist en rozenkwarts.',
+    wikipediaUrl: 'https://nl.wikipedia.org/wiki/Kwarts',
+  },
+  {
+    id: 'ore',
+    name: 'Erts',
+    color: '#8b4513',
+    description: 'Erts is een natuurlijk gesteente dat metalen of waardevolle mineralen bevat. Door smelten en raffineren worden hieruit metalen zoals ijzer, koper en goud gewonnen.',
+    wikipediaUrl: 'https://nl.wikipedia.org/wiki/IJzererts',
+  },
 ]
 
 export class ElementStore {

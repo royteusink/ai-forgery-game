@@ -10,6 +10,8 @@ export class GameUI {
   private container: HTMLDivElement
   private resultOverlay: HTMLDivElement
   private onCombine: (result: Element) => void
+  private onCombineStart?: (elementIds: string[]) => void
+  private onCombineEnd?: () => void
   private miniRenderer: THREE.WebGLRenderer | null = null
   private miniAnimId: number | null = null
 
@@ -32,6 +34,11 @@ export class GameUI {
     store.onChange(() => this.render())
   }
 
+  setCombineCallbacks(onStart: (elementIds: string[]) => void, onEnd: () => void): void {
+    this.onCombineStart = onStart
+    this.onCombineEnd = onEnd
+  }
+
   private render(): void {
     const elements = this.store.getAll()
     this.container.innerHTML = `
@@ -43,6 +50,8 @@ export class GameUI {
         <div class="combine-slot">${this.selected[0] ? this.renderSlot(this.selected[0]) : '<span class="empty">?</span>'}</div>
         <span class="combine-plus">+</span>
         <div class="combine-slot">${this.selected[1] ? this.renderSlot(this.selected[1]) : '<span class="empty">?</span>'}</div>
+        <span class="combine-plus">+</span>
+        <div class="combine-slot">${this.selected[2] ? this.renderSlot(this.selected[2]) : '<span class="empty">?</span>'}</div>
         <button class="combine-btn" ${this.selected.length < 2 ? 'disabled' : ''}>Combineer</button>
       </div>
     `
@@ -89,7 +98,7 @@ export class GameUI {
     const idx = this.selected.findIndex((s) => s.id === id)
     if (idx >= 0) {
       this.selected.splice(idx, 1)
-    } else if (this.selected.length < 2) {
+    } else if (this.selected.length < 3) {
       this.selected.push(el)
     }
     this.render()
@@ -98,20 +107,30 @@ export class GameUI {
   private async doCombine(): Promise<void> {
     if (this.selected.length < 2) return
 
-    const a = this.selected[0]!
-    const b = this.selected[1]!
+    const elements = [...this.selected]
     const btn = this.container.querySelector('.combine-btn') as HTMLButtonElement
     btn.disabled = true
     btn.textContent = 'Bezig...'
 
+    // Start de 3D animatie
+    this.onCombineStart?.(elements.map((e) => e.id))
+
     try {
-      const result = await combineElements(a, b)
+      const result = await combineElements(...elements)
+
+      // Trigger flash + wacht tot die klaar is
+      await new Promise<void>((resolve) => {
+        this.onCombineEnd?.()
+        setTimeout(resolve, 600)
+      })
+
       this.store.add(result)
       this.onCombine(result)
-      this.showResult(a, b, result)
+      this.showResult(elements, result)
       this.selected = []
       this.render()
     } catch (err) {
+      this.onCombineEnd?.()
       this.showError(String(err))
       btn.disabled = false
       btn.textContent = 'Combineer'
@@ -169,14 +188,16 @@ export class GameUI {
     animate()
   }
 
-  private showResult(a: Element, b: Element, result: Element): void {
+  private showResult(ingredients: Element[], result: Element): void {
+    const formula = ingredients
+      .map((el) => `<span style="color:${el.color}">${el.name}</span>`)
+      .join('<span class="result-op">+</span>')
+
     this.resultOverlay.style.display = 'flex'
     this.resultOverlay.innerHTML = `
       <div class="result-card">
         <div class="result-formula">
-          <span style="color:${a.color}">${a.name}</span>
-          <span class="result-op">+</span>
-          <span style="color:${b.color}">${b.name}</span>
+          ${formula}
           <span class="result-op">=</span>
         </div>
         <div class="result-new">

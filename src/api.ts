@@ -1,11 +1,11 @@
 import type { Element } from './types'
 import { registerShader } from './shaders'
 
-export async function combineElements(a: Element, b: Element): Promise<Element> {
+export async function combineElements(...elements: Element[]): Promise<Element> {
   const response = await fetch('/api/combine', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ elementA: a.name, elementB: b.name }),
+    body: JSON.stringify({ elements: elements.map((e) => e.name) }),
   })
 
   if (!response.ok) {

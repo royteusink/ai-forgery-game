@@ -361,6 +361,197 @@ const goldFragment = `
   }
 `
 
+// Hout: warme houtnerfstructuur met ringen en knoesten
+const woodFragment = `
+  ${uniformHeader}
+  ${noiseLib}
+
+  void main() {
+    vec3 lightDir = normalize(vec3(0.8, 1.0, 0.6));
+
+    // Houtnerf - concentrische ringen
+    vec2 grainUv = vUv * 2.0;
+    float dist = length(grainUv - vec2(0.5, 0.5)) * 8.0;
+    float ring = sin(dist + fbm(vUv * 4.0, 3) * 3.0) * 0.5 + 0.5;
+    ring = smoothstep(0.3, 0.7, ring);
+
+    // Langwerpige nerflijnen
+    float grain = fbm(vec2(vUv.x * 2.0, vUv.y * 20.0), 4);
+    float fineGrain = noise(vec2(vUv.x * 5.0, vUv.y * 80.0));
+
+    // Knoesten
+    float knot1 = 1.0 - smoothstep(0.0, 0.15, length(vUv - vec2(0.3, 0.6)));
+    float knot2 = 1.0 - smoothstep(0.0, 0.1, length(vUv - vec2(0.7, 0.35)));
+    float knots = max(knot1, knot2);
+
+    // Kleurvariatie
+    vec3 lightWood = uColor * 1.3;
+    vec3 darkWood = uColor * 0.5;
+    vec3 knotColor = uColor * 0.35;
+
+    vec3 baseColor = mix(darkWood, lightWood, ring * 0.6 + grain * 0.3);
+    baseColor += (fineGrain - 0.5) * 0.06;
+    baseColor = mix(baseColor, knotColor, knots * 0.7);
+
+    // Belichting
+    float NdotL = max(dot(vWorldNormal, lightDir), 0.0);
+    float diffuse = NdotL * 0.6 + 0.4;
+
+    // Lichte glans (gelakt hout)
+    vec3 halfDir = normalize(lightDir + vViewDir);
+    float spec = pow(max(dot(vWorldNormal, halfDir), 0.0), 24.0);
+
+    vec3 col = baseColor * diffuse;
+    col += vec3(0.9, 0.8, 0.6) * spec * 0.15;
+
+    gl_FragColor = vec4(col, 1.0);
+  }
+`
+
+// Kristal: doorschijnend prisma-effect met regenboog-refl ecties
+const crystalFragment = `
+  ${uniformHeader}
+  ${noiseLib}
+
+  void main() {
+    vec3 lightDir = normalize(vec3(0.8, 1.0, 0.6));
+
+    // Kristalvlakken simulatie
+    vec2 facetUv = vUv * 6.0;
+    float facet = noise(floor(facetUv) + 0.5);
+    float facetEdge = smoothstep(0.02, 0.06, min(
+      min(fract(facetUv.x), 1.0 - fract(facetUv.x)),
+      min(fract(facetUv.y), 1.0 - fract(facetUv.y))
+    ));
+
+    // Interne breking / prisma kleuren
+    vec3 reflDir = reflect(-vViewDir, vWorldNormal);
+    float prism = reflDir.x * 0.5 + reflDir.y * 0.3 + sin(uTime * 0.5) * 0.2;
+
+    vec3 rainbow;
+    rainbow.r = sin(prism * 6.28 + 0.0) * 0.5 + 0.5;
+    rainbow.g = sin(prism * 6.28 + 2.09) * 0.5 + 0.5;
+    rainbow.b = sin(prism * 6.28 + 4.19) * 0.5 + 0.5;
+
+    // Basiskleuring
+    vec3 baseColor = uColor * (0.6 + facet * 0.4);
+    baseColor = mix(baseColor, rainbow * 0.7, 0.25);
+
+    // Interne gloed
+    float innerGlow = fbm(vUv * 4.0 + uTime * 0.1, 3);
+    baseColor += uColor * innerGlow * 0.15;
+
+    // Kristalranden donkerder
+    baseColor *= facetEdge * 0.3 + 0.7;
+
+    // Belichting
+    float NdotL = max(dot(vWorldNormal, lightDir), 0.0);
+    float diffuse = NdotL * 0.4 + 0.6;
+
+    // Sterke specular (glanzend kristal)
+    vec3 halfDir = normalize(lightDir + vViewDir);
+    float spec = pow(max(dot(vWorldNormal, halfDir), 0.0), 100.0);
+    float spec2 = pow(max(dot(vWorldNormal, halfDir), 0.0), 30.0);
+
+    // Sterke fresnel
+    float fresnel = schlickFresnel(vWorldNormal, vViewDir, 0.08);
+    vec3 rimColor = vec3(0.8, 0.85, 1.0);
+
+    vec3 col = baseColor * diffuse;
+    col += vec3(1.0) * spec * 0.8;
+    col += uColor * spec2 * 0.2;
+    col += rimColor * fresnel * 0.5;
+
+    gl_FragColor = vec4(col, 1.0);
+  }
+`
+
+// Kwarts: lichtdoorlatend mineraal met subtiele glinstering
+const quartzFragment = `
+  ${uniformHeader}
+  ${noiseLib}
+
+  void main() {
+    vec3 lightDir = normalize(vec3(0.8, 1.0, 0.6));
+
+    // Kristallijne structuur
+    float grain = fbm(vUv * 12.0, 4);
+    float veins = sin(vUv.x * 20.0 + grain * 5.0 + vUv.y * 8.0) * 0.5 + 0.5;
+    veins = smoothstep(0.4, 0.6, veins);
+
+    // Subtiele kleurvariatie
+    vec3 clearQuartz = uColor * 1.2;
+    vec3 milkyQuartz = uColor * 0.85;
+    vec3 baseColor = mix(milkyQuartz, clearQuartz, grain * 0.6 + veins * 0.3);
+
+    // Glinsterende deeltjes
+    float sparkle = noise(vUv * 150.0 + uTime * 0.3);
+    sparkle = step(0.88, sparkle);
+    baseColor += vec3(1.0, 0.98, 0.9) * sparkle * 0.5;
+
+    // Belichting
+    float NdotL = max(dot(vWorldNormal, lightDir), 0.0);
+    float diffuse = NdotL * 0.5 + 0.5;
+
+    // Glasachtige specular
+    vec3 halfDir = normalize(lightDir + vViewDir);
+    float spec = pow(max(dot(vWorldNormal, halfDir), 0.0), 60.0);
+
+    // Fresnel voor glasachtig effect
+    float fresnel = schlickFresnel(vWorldNormal, vViewDir, 0.06);
+
+    vec3 col = baseColor * diffuse;
+    col += vec3(1.0) * spec * 0.5;
+    col += vec3(0.95, 0.93, 0.88) * fresnel * 0.4;
+
+    gl_FragColor = vec4(col, 1.0);
+  }
+`
+
+// Erts: ruw gesteente met metaaladers
+const oreFragment = `
+  ${uniformHeader}
+  ${noiseLib}
+
+  void main() {
+    vec3 lightDir = normalize(vec3(0.8, 1.0, 0.6));
+
+    // Ruw gesteente basis
+    float rock = fbm(vUv * 8.0, 5);
+    float rockDetail = noise(vUv * 40.0);
+
+    // Metaaladers door het gesteente
+    float vein = fbm(vec2(vUv.x * 3.0 + rock * 2.0, vUv.y * 6.0), 4);
+    float metalVein = smoothstep(0.48, 0.52, vein);
+
+    // Kleurvariatie
+    vec3 darkRock = uColor * 0.4;
+    vec3 lightRock = uColor * 0.9;
+    vec3 metalColor = vec3(0.7, 0.55, 0.3);
+
+    vec3 baseColor = mix(darkRock, lightRock, rock);
+    baseColor += (rockDetail - 0.5) * 0.08;
+    baseColor = mix(baseColor, metalColor, metalVein * 0.7);
+
+    // Metaalglans op de aders
+    float metalShine = step(0.9, noise(vUv * 100.0 + uTime * 0.2)) * metalVein;
+    baseColor += vec3(0.9, 0.7, 0.4) * metalShine * 0.4;
+
+    // Belichting
+    float NdotL = max(dot(vWorldNormal, lightDir), 0.0);
+    float diffuse = NdotL * 0.6 + 0.4;
+
+    // Matte specular met glans op metaaldelen
+    vec3 halfDir = normalize(lightDir + vViewDir);
+    float spec = pow(max(dot(vWorldNormal, halfDir), 0.0), 20.0 + metalVein * 60.0);
+
+    vec3 col = baseColor * diffuse;
+    col += mix(vec3(0.15), metalColor, metalVein) * spec * 0.3;
+
+    gl_FragColor = vec4(col, 1.0);
+  }
+`
+
 // Default: mooie geanimeerde shader voor AI-gegenereerde elementen
 const defaultFragment = `
   ${uniformHeader}
@@ -406,6 +597,10 @@ const fragmentShaders: Record<string, string> = {
   sand: sandFragment,
   air: airFragment,
   gold: goldFragment,
+  wood: woodFragment,
+  crystal: crystalFragment,
+  quartz: quartzFragment,
+  ore: oreFragment,
 }
 
 export function registerShader(elementId: string, fragmentBody: string): void {
