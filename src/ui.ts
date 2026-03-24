@@ -468,7 +468,8 @@ export class GameUI {
         animation: overlayFadeIn 0.3s ease-out;
       }
       .result-card {
-        background: #1e293b;
+        background: rgba(30, 41, 59,0.5);
+        backdrop-filter: blur(12px);
         border: 1px solid rgba(255,255,255,0.1);
         border-radius: 16px;
         padding: 32px;
@@ -517,7 +518,8 @@ export class GameUI {
       }
       .result-close:hover { background: rgba(255,255,255,0.15); }
       .info-card {
-        background: #1e293b;
+        background: rgba(30, 41, 59,0.5);
+        backdrop-filter: blur(12px);
         border: 1px solid rgba(255,255,255,0.1);
         border-radius: 16px;
         padding: 32px;

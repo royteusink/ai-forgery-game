@@ -123,7 +123,7 @@ const spiralTightness = 0.22 // how quickly the spiral expands (lower = tighter)
 
 // Fade-in state voor cubes na combine (by elementId zodat het overleeft na layoutCubes rebuild)
 const fadeInStartTimes = new Map<string, number>() // elementId -> startTime
-const FADE_IN_DURATION = 1.0
+const FADE_IN_DURATION = 2
 let fadeInIds: Set<string> = new Set()
 
 let suppressLayout = false
@@ -171,7 +171,7 @@ function layoutCubes(): void {
       const fadeStart = fadeInStartTimes.get(el.id)!
       const t = Math.min(1, (now - fadeStart) / FADE_IN_DURATION)
       if (t < 1) {
-        const eased = t * t * (3 - 2 * t)
+        const eased = t * t * (3 - 2 * t) * 0.15 + 0.85 // ease-out cubic
         group.scale.set(eased, eased, eased)
       } else {
         fadeInStartTimes.delete(el.id)
@@ -324,7 +324,7 @@ function startCombineAnimation(elementIds: string[]): void {
   }
 
   // Particles starten 2 seconden na combine start
-  particleEmitTime = combineAnim.startTime + 2
+  particleEmitTime = combineAnim.startTime + 1
 }
 
 function endCombineAnimation(newResult?: Element): void {
@@ -587,7 +587,7 @@ function animate(): void {
         mat.uniforms['uAlpha']!.value = eased
       }
       const lbl = g.children.find((c) => c instanceof CSS2DObject) as CSS2DObject | undefined
-      if (lbl) (lbl.element as HTMLElement).style.opacity = String(eased)
+      if (lbl) (lbl.element as HTMLElement).style.opacity = String(eased * 0.15)
       if (t >= 1) {
         fadeInStartTimes.delete(elementId)
         if (mesh) {

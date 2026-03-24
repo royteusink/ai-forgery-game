@@ -19,7 +19,7 @@ export async function combineElements(...elements: Element[]): Promise<Element> 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ elements: elements.map((e) => e.name) }),
     }),
-    new Promise((r) => setTimeout(r, 4000)),
+    new Promise((r) => setTimeout(r, 5000)),
   ])
 
   if (!response.ok) {
