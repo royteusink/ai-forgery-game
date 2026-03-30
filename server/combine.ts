@@ -49,6 +49,7 @@ export function handleCombine(cache: Cache, lang: string) {
           '-p', prompt(elementList, count, existingIds),
           '--model', 'haiku',
           '--output-format', 'text',
+          '--no-session-persistence',
         ], { timeout: 80000, stdio: ['pipe', 'pipe', 'pipe'] })
 
         proc.stdin.end()

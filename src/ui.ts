@@ -30,15 +30,14 @@ export class GameUI {
 
     this.resultOverlay = document.createElement('div')
     this.resultOverlay.id = 'result-overlay'
-    this.resultOverlay.style.display = 'none'
+    this.resultOverlay.hidden = true
     document.body.appendChild(this.resultOverlay)
 
     this.infoOverlay = document.createElement('div')
     this.infoOverlay.id = 'info-overlay'
-    this.infoOverlay.style.display = 'none'
+    this.infoOverlay.hidden = true
     document.body.appendChild(this.infoOverlay)
 
-    this.injectStyles()
     this.render()
 
     store.onChange(() => this.render())
@@ -295,7 +294,7 @@ export class GameUI {
       .map((el) => `<span style="color:${el.color}">${el.name}</span>`)
       .join('<span class="result-op">+</span>')
 
-    this.resultOverlay.style.display = 'flex'
+    this.resultOverlay.hidden = false
     this.resultOverlay.innerHTML = `
       <div class="result-card">
         <div class="result-formula">
@@ -311,12 +310,12 @@ export class GameUI {
     `
 
     const cubeContainer = this.resultOverlay.querySelector('.result-cube-container') as HTMLElement
-    cubeContainer.style.cursor = 'pointer'
+    cubeContainer.classList.add('clickable')
     this.startMiniScene(cubeContainer, result)
 
     const closeModal = () => {
       this.stopMiniScene()
-      this.resultOverlay.style.display = 'none'
+      this.resultOverlay.hidden = true
     }
 
     cubeContainer.addEventListener('click', (e) => {
@@ -337,15 +336,15 @@ export class GameUI {
 
   showElementInfo(element: Element): void {
     this.stopInfoMiniScene()
-    this.infoOverlay.style.display = 'flex'
+    this.infoOverlay.hidden = false
     this.infoOverlay.innerHTML = `
       <div class="info-card">
         <div class="info-header">
           <div class="info-cube-container"></div>
           <div class="info-title">${element.name}</div>
         </div>
-        <div class="info-image-container" style="display:none"><img class="info-image" alt="${element.name}" /></div>
-        ${element.description ? `<p class="info-description">${element.description}</p>` : `<p class="info-description" style="color:#64748b">${locale.ui.noDescription}</p>`}
+        <div class="info-image-container" hidden><img class="info-image" alt="${element.name}" /></div>
+        ${element.description ? `<p class="info-description">${element.description}</p>` : `<p class="info-description muted">${locale.ui.noDescription}</p>`}
         ${element.wikipediaUrl ? `<a class="info-wiki-link" href="${element.wikipediaUrl}" target="_blank" rel="noopener noreferrer">${locale.ui.viewOnWikipedia}</a>` : ''}
         <button class="result-close">${locale.ui.close}</button>
       </div>
@@ -361,14 +360,14 @@ export class GameUI {
           const container = this.infoOverlay.querySelector('.info-image-container') as HTMLElement
           const img = container.querySelector('.info-image') as HTMLImageElement
           img.src = imageUrl
-          img.onload = () => { container.style.display = '' }
+          img.onload = () => { container.removeAttribute('hidden') }
         }
       })
     }
 
     const closeModal = () => {
       this.stopInfoMiniScene()
-      this.infoOverlay.style.display = 'none'
+      this.infoOverlay.hidden = true
     }
     this.infoOverlay.querySelector('.result-close')?.addEventListener('click', closeModal)
     this.infoOverlay.addEventListener('click', (e) => {
@@ -393,7 +392,7 @@ export class GameUI {
   }
 
   private showError(msg: string): void {
-    this.resultOverlay.style.display = 'flex'
+    this.resultOverlay.hidden = false
     this.resultOverlay.innerHTML = `
       <div class="result-card error">
         <div class="result-name">${locale.ui.error}</div>
@@ -402,277 +401,8 @@ export class GameUI {
       </div>
     `
     this.resultOverlay.querySelector('.result-close')?.addEventListener('click', () => {
-      this.resultOverlay.style.display = 'none'
+      this.resultOverlay.hidden = true
     })
   }
 
-  private injectStyles(): void {
-    const style = document.createElement('style')
-    style.textContent = `
-      #inventory {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background: rgba(10, 10, 20, 0.2);
-        backdrop-filter: blur(12px);
-        border-top: 1px solid rgba(255,255,255,0.1);
-        padding: 16px 24px;
-        font-family: sans-serif;
-        color: #e2e8f0;
-        z-index: 100;
-      }
-      .inventory-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        margin-bottom: 10px;
-      }
-      .load-cache-btn {
-        padding: 4px 12px;
-        background: rgba(255,255,255,0.08);
-        color: #94a3b8;
-        border: 1px solid rgba(255,255,255,0.12);
-        border-radius: 6px;
-        font-size: 12px;
-        cursor: pointer;
-        transition: all 0.15s;
-      }
-      .load-cache-btn:hover:not(:disabled) { background: rgba(255,255,255,0.15); color: #e2e8f0; }
-      .load-cache-btn:disabled { opacity: 0.4; cursor: default; }
-      .inventory-toggle {
-        font-size: 13px;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        color: #94a3b8;
-        cursor: pointer;
-        user-select: none;
-      }
-      .inventory-toggle:hover { color: #e2e8f0; }
-      .inventory-count { color: #64748b; }
-      .inventory-grid {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        margin-bottom: 14px;
-        max-height: 60vh;
-        overflow-y: auto;
-        transition: max-height 0.25s ease, opacity 0.25s ease;
-      }
-      .inventory-grid.collapsed {
-        max-height: 0;
-        overflow: hidden;
-        margin-bottom: 0;
-        opacity: 0;
-      }
-      .inventory-grid.expanded {
-        opacity: 1;
-      }
-      .element-card {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 4px;
-        padding: 8px 12px;
-        background: rgba(255,255,255,0.05);
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 8px;
-        cursor: pointer;
-        transition: all 0.15s;
-      }
-      .element-card:hover { background: rgba(255,255,255,0.1); }
-      .element-card.selected {
-        border-color: #3b82f6;
-        background: rgba(59,130,246,0.15);
-      }
-      .element-cube {
-        width: 32px;
-        height: 32px;
-        border-radius: 4px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-      }
-      .element-cube.small { width: 22px; height: 22px; }
-      .element-cube.large { width: 64px; height: 64px; border-radius: 8px; }
-      .element-name { font-size: 11px; color: #cbd5e1; }
-      .combine-area {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
-      .combine-slot {
-        min-width: 80px;
-        height: 48px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: rgba(255,255,255,0.03);
-        border: 1px dashed rgba(255,255,255,0.15);
-        border-radius: 8px;
-        padding: 0 12px;
-        cursor: pointer;
-      }
-      .combine-slot .empty { color: #475569; font-size: 20px; }
-      .slot-content {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 13px;
-      }
-      .combine-plus { color: #64748b; font-size: 18px; font-weight: bold; }
-      .combine-btn {
-        margin-left: 12px;
-        padding: 10px 24px;
-        background: #3b82f6;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.15s;
-      }
-      .combine-btn:hover:not(:disabled) { background: #2563eb; }
-      .combine-btn:disabled { opacity: 0.3; cursor: default; }
-      @keyframes overlayFadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-      }
-      @keyframes cardFadeIn {
-        from { opacity: 0; transform: scale(0.9) translateY(16px); }
-        to { opacity: 1; transform: scale(1) translateY(0); }
-      }
-      #result-overlay, #info-overlay {
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.7);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 200;
-        animation: overlayFadeIn 0.3s ease-out;
-      }
-      #info-overlay {
-        z-index: 210;
-      }
-      .result-card {
-        background: rgba(30, 41, 59,0.5);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 16px;
-        padding: 32px;
-        text-align: center;
-        min-width: 280px;
-        animation: cardFadeIn 0.35s ease-out;
-      }
-      .result-card.error { border-color: #ef4444; }
-      .result-formula {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-        font-size: 18px;
-        font-weight: 600;
-        margin-bottom: 20px;
-      }
-      .result-op { color: #64748b; }
-      .result-new {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 24px;
-      }
-      .result-name {
-        font-size: 24px;
-        font-weight: 700;
-        color: #f1f5f9;
-      }
-      .result-close {
-        padding: 8px 32px;
-        background: rgba(255,255,255,0.1);
-        color: #e2e8f0;
-        border: 1px solid rgba(255,255,255,0.15);
-        border-radius: 8px;
-        font-size: 14px;
-        cursor: pointer;
-      }
-      .result-cube-container {
-        width: 128px;
-        height: 128px;
-      }
-      .result-cube-container canvas {
-        border-radius: 8px;
-      }
-      .result-close:hover { background: rgba(255,255,255,0.15); }
-      .info-card {
-        background: rgba(30, 41, 59,0.5);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 16px;
-        padding: 32px;
-        text-align: center;
-        min-width: 320px;
-        max-width: 420px;
-        animation: cardFadeIn 0.35s ease-out;
-      }
-      .info-header {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 20px;
-      }
-      .info-title {
-        font-size: 28px;
-        font-weight: 700;
-        color: #f1f5f9;
-      }
-      .info-image-container {
-        margin-bottom: 16px;
-        border-radius: 12px;
-        overflow: hidden;
-        border: 1px solid rgba(255,255,255,0.08);
-        aspect-ratio: 16 / 9;
-        background: rgba(255,255,255,0.03);
-      }
-      .info-image {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
-      }
-      .info-description {
-        font-size: 14px;
-        line-height: 1.6;
-        color: #cbd5e1;
-        margin: 0 0 16px 0;
-        text-align: left;
-      }
-      .info-wiki-link {
-        display: inline-block;
-        margin-bottom: 20px;
-        padding: 8px 20px;
-        background: rgba(59,130,246,0.15);
-        color: #60a5fa;
-        border: 1px solid rgba(59,130,246,0.3);
-        border-radius: 8px;
-        text-decoration: none;
-        font-size: 14px;
-        font-weight: 500;
-        transition: all 0.15s;
-      }
-      .info-wiki-link:hover {
-        background: rgba(59,130,246,0.25);
-        color: #93bbfc;
-      }
-      .info-cube-container {
-        width: 128px;
-        height: 128px;
-      }
-      .info-cube-container canvas {
-        border-radius: 8px;
-      }
-    `
-    document.head.appendChild(style)
-  }
 }

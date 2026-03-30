@@ -14,9 +14,7 @@ document.body.appendChild(renderer.domElement)
 // Label renderer
 const labelRenderer = new CSS2DRenderer()
 labelRenderer.setSize(window.innerWidth, window.innerHeight)
-labelRenderer.domElement.style.position = 'absolute'
-labelRenderer.domElement.style.top = '0'
-labelRenderer.domElement.style.pointerEvents = 'none'
+labelRenderer.domElement.classList.add('label-renderer')
 document.body.appendChild(labelRenderer.domElement)
 
 // Camera
@@ -106,7 +104,7 @@ function createCubeMesh(element: Element): THREE.Group {
 
   const labelDiv = document.createElement('div')
   labelDiv.textContent = element.name
-  labelDiv.style.cssText = 'color: #e2e8f0; font-family: sans-serif; font-size: 12px; font-weight: 600; text-shadow: 0 1px 4px rgba(0,0,0,0.8); white-space: nowrap; transform: translate(-50%, 0);'
+  labelDiv.className = 'cube-label'
   const label = new CSS2DObject(labelDiv)
   label.position.set(0, 0, 0)
 
