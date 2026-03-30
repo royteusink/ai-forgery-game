@@ -58,6 +58,7 @@ const bgScene = new THREE.Scene()
 const bgCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
 const bgMaterial = new THREE.ShaderMaterial({
   depthWrite: false,
+  uniforms: { uBrightness: { value: 1.5 } },
   vertexShader: `
     varying vec2 vUv;
     void main() {
@@ -66,6 +67,7 @@ const bgMaterial = new THREE.ShaderMaterial({
     }
   `,
   fragmentShader: `
+    uniform float uBrightness;
     varying vec2 vUv;
     void main() {
       vec2 center = vec2(0.5, 0.5);
@@ -75,7 +77,7 @@ const bgMaterial = new THREE.ShaderMaterial({
       vec3 outer   = vec3(0.01, 0.01, 0.03);  // almost black blue
       vec3 color = mix(core, mid, smoothstep(0.0, 0.5, dist));
       color = mix(color, outer, smoothstep(0.4, 1.0, dist));
-      gl_FragColor = vec4(color, 1.0);
+      gl_FragColor = vec4(color * uBrightness, 1.0);
     }
   `,
 })
@@ -334,6 +336,7 @@ const flashMaterial = new THREE.ShaderMaterial({
 flashScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), flashMaterial))
 let flashStartTime = 0
 const FLASH_DURATION = 0.5
+
 
 function startCombineAnimation(elementIds: string[]): void {
   const cubes: THREE.Group[] = []
