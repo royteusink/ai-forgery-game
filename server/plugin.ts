@@ -3,14 +3,14 @@ import { loadCache } from './cache'
 import { handleCacheElements } from './cache-elements'
 import { handleCombine } from './combine'
 
-export function combineApiPlugin(): Plugin {
+export function combineApiPlugin(lang: string = 'en_US'): Plugin {
   const cache = loadCache()
 
   return {
     name: 'combine-api',
     configureServer(server) {
       server.middlewares.use('/api/cache-elements', handleCacheElements(cache))
-      server.middlewares.use('/api/combine', handleCombine(cache))
+      server.middlewares.use('/api/combine', handleCombine(cache, lang))
     },
   }
 }

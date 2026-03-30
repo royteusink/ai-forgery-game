@@ -2,7 +2,7 @@
 
 ![Screenshot](docs/screenshot.png)
 
-An interactive 3D element-combining game built with Three.js. Start with base elements like Water, Fire, Sand, and Gold — then combine them to discover new ones, powered by AI.
+An interactive 3D element-combining game built with Three.js. Start with base elements like Water, Fire, Sand, and Gold — then combine them to discover new ones, 100% made and powered by AI.
 
 ## Features
 

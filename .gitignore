@@ -1,6 +1,9 @@
 .worktrees/
-.superpowers/
+superpowers/
 node_modules/
 dist/
 combine-cache.json
 .env
+.todo
+CLAUDE.md
+.claude/
