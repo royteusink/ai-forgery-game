@@ -3,6 +3,7 @@ import type { Element } from './types'
 import { ElementStore } from './elements'
 import { combineElements, fetchCacheElements } from './api'
 import { createElementMaterial } from './shaders'
+import { addFadeIn } from './fade'
 import { locale } from './locales'
 
 export class GameUI {
@@ -125,10 +126,22 @@ export class GameUI {
     btn.disabled = true
     btn.textContent = locale.ui.loading
     try {
-      const elements = await fetchCacheElements()
-      elements.sort((a, b) => a.name.localeCompare(b.name, locale.lang))
-      for (const el of elements) {
+      const cached = await fetchCacheElements()
+      const current = this.store.getAll()
+      const seen = new Set(current.map((e) => e.id))
+      const all = [...current]
+      for (const el of cached) {
+        if (!seen.has(el.id)) {
+          seen.add(el.id)
+          all.push(el)
+        }
+      }
+      all.sort((a, b) => a.name.localeCompare(b.name, locale.lang))
+      this.store.clear()
+      for (const el of all) {
+        addFadeIn(el.id)
         this.store.add(el)
+        await new Promise((r) => setTimeout(r, 20))
       }
     } catch (err) {
       this.showError(String(err))

@@ -20,6 +20,17 @@ export class ElementStore {
     }
   }
 
+  addSilent(element: Element): void {
+    if (!this.elements.find((e) => e.id === element.id)) {
+      this.elements.push(element)
+    }
+  }
+
+  clear(): void {
+    this.elements = []
+    this.notify()
+  }
+
   onChange(listener: () => void): void {
     this.listeners.push(listener)
   }

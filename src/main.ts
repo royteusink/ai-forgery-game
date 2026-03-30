@@ -121,10 +121,8 @@ function createCubeMesh(element: Element): THREE.Group {
 const spiralSpacing = 1.25 // fixed arc distance between cubes
 const spiralTightness = 0.22 // how quickly the spiral expands (lower = tighter)
 
-// Fade-in state for cubes after combine (by elementId so it survives layoutCubes rebuild)
-const fadeInStartTimes = new Map<string, number>() // elementId -> startTime
-const FADE_IN_DURATION = 2
-let fadeInIds: Set<string> = new Set()
+// Fade-in state for cubes after combine (shared module so UI can trigger fade-ins too)
+import { fadeInIds, fadeInStartTimes, FADE_IN_DURATION, spinTargets } from './fade'
 
 let suppressLayout = false
 
@@ -171,8 +169,15 @@ function layoutCubes(): void {
       const fadeStart = fadeInStartTimes.get(el.id)!
       const t = Math.min(1, (now - fadeStart) / FADE_IN_DURATION)
       if (t < 1) {
-        const eased = t * t * (3 - 2 * t) * 0.15 + 0.85 // ease-out cubic
+        const eased = t * t * (3 - 2 * t) // smoothstep (matches animate loop)
         group.scale.set(eased, eased, eased)
+        const fadeMesh = group.children.find((c) => c instanceof THREE.Mesh && !c.userData['isOutline']) as THREE.Mesh | undefined
+        if (fadeMesh) {
+          const mat = fadeMesh.material as THREE.ShaderMaterial
+          if (mat.uniforms?.['uAlpha']) mat.uniforms['uAlpha'].value = eased
+        }
+        const fadeLabel = group.children.find((c) => c instanceof CSS2DObject) as CSS2DObject | undefined
+        if (fadeLabel) fadeLabel.element.style.opacity = String(eased)
       } else {
         fadeInStartTimes.delete(el.id)
       }
@@ -350,7 +355,8 @@ function endCombineAnimation(newResult?: Element): void {
     }
 
     // All elements zoom in and fade in after a combine
-    fadeInIds = new Set(store.getAll().map((el) => el.id))
+    fadeInIds.clear()
+    store.getAll().forEach((el) => fadeInIds.add(el.id))
 
     layoutCubes()
   }, 500)
@@ -579,17 +585,24 @@ function animate(): void {
     const elementId = g.userData['elementId'] as string
     const fadeStart = fadeInStartTimes.get(elementId)
     if (fadeStart !== undefined) {
-      const t = Math.min(1, (elapsed - fadeStart) / FADE_IN_DURATION)
+      const absNow = performance.now() / 1000
+      const t = Math.max(0, Math.min(1, (absNow - fadeStart) / FADE_IN_DURATION))
       const eased = t * t * (3 - 2 * t) // smoothstep
       g.scale.set(eased, eased, eased)
       if (mesh) {
         const mat = mesh.material as THREE.ShaderMaterial
         mat.uniforms['uAlpha']!.value = eased
+        const spin = spinTargets.get(elementId)
+        if (spin) {
+          mesh.rotation.x = eased * spin.rx
+          mesh.rotation.y = eased * spin.ry
+        }
       }
       const lbl = g.children.find((c) => c instanceof CSS2DObject) as CSS2DObject | undefined
-      if (lbl) (lbl.element as HTMLElement).style.opacity = String(eased * 0.15)
+      if (lbl) (lbl.element as HTMLElement).style.opacity = String(eased)
       if (t >= 1) {
         fadeInStartTimes.delete(elementId)
+        spinTargets.delete(elementId)
         if (mesh) {
           const mat = mesh.material as THREE.ShaderMaterial
           mat.uniforms['uAlpha']!.value = 1
