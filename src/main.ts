@@ -21,6 +21,32 @@ document.body.appendChild(labelRenderer.domElement)
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100)
 camera.position.set(0, 0, 8)
 
+// Zoom (scroll wheel, toward pointer)
+const zoomMin = 3
+const zoomMax = 20
+let zoomTarget = camera.position.z
+let panTargetX = camera.position.x
+let panTargetY = camera.position.y
+
+window.addEventListener('wheel', (e) => {
+  e.preventDefault()
+  const prevZoom = zoomTarget
+  zoomTarget = THREE.MathUtils.clamp(zoomTarget + e.deltaY * 0.01, zoomMin, zoomMax)
+  const zoomDelta = zoomTarget - prevZoom
+
+  // Mouse position in NDC (-1 to 1)
+  const ndcX = (e.clientX / window.innerWidth) * 2 - 1
+  const ndcY = -(e.clientY / window.innerHeight) * 2 + 1
+
+  // Shift camera X/Y toward pointer proportionally to zoom change
+  const fovRad = THREE.MathUtils.degToRad(camera.fov)
+  const visibleHeight = 2 * Math.tan(fovRad / 2) * prevZoom
+  const visibleWidth = visibleHeight * camera.aspect
+
+  panTargetX -= ndcX * (zoomDelta / prevZoom) * visibleWidth * 0.5
+  panTargetY -= ndcY * (zoomDelta / prevZoom) * visibleHeight * 0.5
+}, { passive: false })
+
 // Scene
 const scene = new THREE.Scene()
 
@@ -433,6 +459,11 @@ const startTime = performance.now()
 function animate(): void {
   requestAnimationFrame(animate)
   const elapsed = (performance.now() - startTime) / 1000
+
+  // Smooth zoom interpolation (toward pointer)
+  camera.position.z += (zoomTarget - camera.position.z) * 0.1
+  camera.position.x += (panTargetX - camera.position.x) * 0.1
+  camera.position.y += (panTargetY - camera.position.y) * 0.1
 
   // Rotate the whole circle slowly (not during combine animation)
   if (!combineAnim) {
