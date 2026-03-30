@@ -11,11 +11,15 @@ export class GameUI {
   private selected: Element[] = []
   private container: HTMLDivElement
   private resultOverlay: HTMLDivElement
+  private infoOverlay: HTMLDivElement
   private onCombineStart?: (elementIds: string[]) => void
   private onCombineEnd?: (result?: Element) => void
   private miniRenderer: THREE.WebGLRenderer | null = null
   private miniAnimId: number | null = null
+  private infoMiniRenderer: THREE.WebGLRenderer | null = null
+  private infoMiniAnimId: number | null = null
   private gridExpanded = false
+  private combining = false
 
   constructor(store: ElementStore) {
     this.store = store
@@ -28,6 +32,11 @@ export class GameUI {
     this.resultOverlay.id = 'result-overlay'
     this.resultOverlay.style.display = 'none'
     document.body.appendChild(this.resultOverlay)
+
+    this.infoOverlay = document.createElement('div')
+    this.infoOverlay.id = 'info-overlay'
+    this.infoOverlay.style.display = 'none'
+    document.body.appendChild(this.infoOverlay)
 
     this.injectStyles()
     this.render()
@@ -45,7 +54,7 @@ export class GameUI {
     this.container.innerHTML = `
       <div class="inventory-header">
         <div class="inventory-toggle">${this.gridExpanded ? '▾' : '▸'} ${locale.ui.elements} <span class="inventory-count">(${elements.length})</span></div>
-        <button class="load-cache-btn">${locale.ui.loadAll}</button>
+        <button class="load-cache-btn" ${this.combining ? 'disabled' : ''}>${locale.ui.loadAll}</button>
       </div>
       <div class="inventory-grid ${this.gridExpanded ? 'expanded' : 'collapsed'}">
         ${elements.map((el) => this.renderElement(el)).join('')}
@@ -56,7 +65,7 @@ export class GameUI {
         <div class="combine-slot">${this.selected[1] ? this.renderSlot(this.selected[1]) : '<span class="empty">?</span>'}</div>
         <span class="combine-plus">+</span>
         <div class="combine-slot">${this.selected[2] ? this.renderSlot(this.selected[2]) : '<span class="empty">?</span>'}</div>
-        <button class="combine-btn" ${this.selected.length < 2 ? 'disabled' : ''}>${locale.ui.combine}</button>
+        <button class="combine-btn" ${this.selected.length < 2 || this.combining ? 'disabled' : ''}>${this.combining ? locale.ui.working : locale.ui.combine}</button>
       </div>
     `
 
@@ -151,12 +160,11 @@ export class GameUI {
   }
 
   private async doCombine(): Promise<void> {
-    if (this.selected.length < 2) return
+    if (this.selected.length < 2 || this.combining) return
 
+    this.combining = true
     const elements = [...this.selected]
-    const btn = this.container.querySelector('.combine-btn') as HTMLButtonElement
-    btn.disabled = true
-    btn.textContent = locale.ui.working
+    this.render()
 
     // Start the 3D animation
     this.onCombineStart?.(elements.map((e) => e.id))
@@ -172,13 +180,12 @@ export class GameUI {
 
       this.showResult(elements, result)
       this.selected = []
-      this.render()
     } catch (err) {
       this.onCombineEnd?.()
       console.log('Combination failed:', err)
-      btn.disabled = false
-      btn.textContent = locale.ui.combine
     }
+    this.combining = false
+    this.render()
   }
 
   private stopMiniScene(): void {
@@ -232,6 +239,57 @@ export class GameUI {
     animate()
   }
 
+  private stopInfoMiniScene(): void {
+    if (this.infoMiniAnimId !== null) {
+      cancelAnimationFrame(this.infoMiniAnimId)
+      this.infoMiniAnimId = null
+    }
+    if (this.infoMiniRenderer) {
+      this.infoMiniRenderer.dispose()
+      this.infoMiniRenderer = null
+    }
+  }
+
+  private startInfoMiniScene(container: HTMLElement, element: Element): void {
+    this.stopInfoMiniScene()
+
+    const size = 128
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+    renderer.setSize(size, size)
+    renderer.setPixelRatio(window.devicePixelRatio)
+    renderer.setClearColor(0x000000, 0)
+    container.appendChild(renderer.domElement)
+    this.infoMiniRenderer = renderer
+
+    const scene = new THREE.Scene()
+    const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 10)
+    camera.position.set(0, 0, 3)
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.3)
+    scene.add(ambientLight)
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2)
+    dirLight.position.set(5, 5, 5)
+    scene.add(dirLight)
+
+    const geometry = new THREE.BoxGeometry(1, 1, 1)
+    const material = createElementMaterial(element.id, element.color)
+    const mesh = new THREE.Mesh(geometry, material)
+    scene.add(mesh)
+
+    const startTime = performance.now()
+    const animate = () => {
+      this.infoMiniAnimId = requestAnimationFrame(animate)
+      const elapsed = (performance.now() - startTime) / 1000
+      mesh.rotation.x += 0.008
+      mesh.rotation.y += 0.012
+      if (material.uniforms?.['uTime']) {
+        material.uniforms['uTime'].value = elapsed
+      }
+      renderer.render(scene, camera)
+    }
+    animate()
+  }
+
   private showResult(ingredients: Element[], result: Element): void {
     const formula = ingredients
       .map((el) => `<span style="color:${el.color}">${el.name}</span>`)
@@ -253,22 +311,34 @@ export class GameUI {
     `
 
     const cubeContainer = this.resultOverlay.querySelector('.result-cube-container') as HTMLElement
+    cubeContainer.style.cursor = 'pointer'
     this.startMiniScene(cubeContainer, result)
 
     const closeModal = () => {
       this.stopMiniScene()
       this.resultOverlay.style.display = 'none'
     }
+
+    cubeContainer.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (e.metaKey) {
+        this.selectElement(result.id)
+      } else {
+        this.showElementInfo(result)
+      }
+    })
+
     this.resultOverlay.querySelector('.result-close')?.addEventListener('click', closeModal)
+
     this.resultOverlay.addEventListener('click', (e) => {
       if (e.target === this.resultOverlay) closeModal()
     })
   }
 
   showElementInfo(element: Element): void {
-    this.stopMiniScene()
-    this.resultOverlay.style.display = 'flex'
-    this.resultOverlay.innerHTML = `
+    this.stopInfoMiniScene()
+    this.infoOverlay.style.display = 'flex'
+    this.infoOverlay.innerHTML = `
       <div class="info-card">
         <div class="info-header">
           <div class="info-cube-container"></div>
@@ -281,14 +351,14 @@ export class GameUI {
       </div>
     `
 
-    const cubeContainer = this.resultOverlay.querySelector('.info-cube-container') as HTMLElement
-    this.startMiniScene(cubeContainer, element)
+    const cubeContainer = this.infoOverlay.querySelector('.info-cube-container') as HTMLElement
+    this.startInfoMiniScene(cubeContainer, element)
 
     // Fetch image via Wikipedia REST API
     if (element.wikipediaUrl) {
       this.fetchWikiImage(element.wikipediaUrl).then((imageUrl) => {
         if (imageUrl) {
-          const container = this.resultOverlay.querySelector('.info-image-container') as HTMLElement
+          const container = this.infoOverlay.querySelector('.info-image-container') as HTMLElement
           const img = container.querySelector('.info-image') as HTMLImageElement
           img.src = imageUrl
           img.onload = () => { container.style.display = '' }
@@ -297,12 +367,12 @@ export class GameUI {
     }
 
     const closeModal = () => {
-      this.stopMiniScene()
-      this.resultOverlay.style.display = 'none'
+      this.stopInfoMiniScene()
+      this.infoOverlay.style.display = 'none'
     }
-    this.resultOverlay.querySelector('.result-close')?.addEventListener('click', closeModal)
-    this.resultOverlay.addEventListener('click', (e) => {
-      if (e.target === this.resultOverlay) closeModal()
+    this.infoOverlay.querySelector('.result-close')?.addEventListener('click', closeModal)
+    this.infoOverlay.addEventListener('click', (e) => {
+      if (e.target === this.infoOverlay) closeModal()
     })
   }
 
@@ -471,7 +541,7 @@ export class GameUI {
         from { opacity: 0; transform: scale(0.9) translateY(16px); }
         to { opacity: 1; transform: scale(1) translateY(0); }
       }
-      #result-overlay {
+      #result-overlay, #info-overlay {
         position: fixed;
         inset: 0;
         background: rgba(0,0,0,0.7);
@@ -480,6 +550,9 @@ export class GameUI {
         justify-content: center;
         z-index: 200;
         animation: overlayFadeIn 0.3s ease-out;
+      }
+      #info-overlay {
+        z-index: 210;
       }
       .result-card {
         background: rgba(30, 41, 59,0.5);
