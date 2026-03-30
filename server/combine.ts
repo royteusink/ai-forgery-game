@@ -3,7 +3,7 @@ import { spawn } from 'child_process'
 import { cacheKey, saveCache, type Cache } from './cache'
 import { getPromptLocale } from './prompts'
 
-export function handleCombine(cache: Cache, lang: string) {
+export function handleCombine(cache: Cache, lang: string, shaderMaxLines: number = 30) {
   const { prompt, countWord, validationError } = getPromptLocale(lang)
 
   return async (req: IncomingMessage, res: ServerResponse) => {
@@ -46,7 +46,7 @@ export function handleCombine(cache: Cache, lang: string) {
     try {
       const result = await new Promise<string>((resolve, reject) => {
         const proc = spawn('claude', [
-          '-p', prompt(elementList, count, existingIds),
+          '-p', prompt(elementList, count, existingIds, shaderMaxLines),
           '--model', 'haiku',
           '--output-format', 'text',
           '--no-session-persistence',

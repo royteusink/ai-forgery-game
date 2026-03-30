@@ -1,4 +1,4 @@
-export const prompt = (elementList: string, count: string, existingIds: string[]) => `Je bent een slim element-combinatie spel, geïnspireerd door echte wetenschap, natuur en scheikunde.
+export const prompt = (elementList: string, count: string, existingIds: string[], shaderMaxLines: number) => `Je bent een slim element-combinatie spel, geïnspireerd door echte wetenschap, natuur en scheikunde.
 
 ${elementList}
 
@@ -29,7 +29,7 @@ De shader body heeft toegang tot deze variabelen:
 - Schrijf naar gl_FragColor = vec4(col, 1.0);
 
 Maak de shader visueel passend bij het element. Bijv. lava = gloeiend met vloeiende textuur, stoom = wolkachtig en transparant-achtig, ijs = kristalachtig met reflecties.
-Gebruik uTime voor animatie. Houd de shader kort (max 20 regels).
+Gebruik uTime voor animatie. Houd de shader kort (max ${shaderMaxLines} regels).
 
 Antwoord ALLEEN met het JSON object, geen andere tekst.`
 

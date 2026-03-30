@@ -1,4 +1,4 @@
-export const prompt = (elementList: string, count: string, existingIds: string[]) => `You are a clever element-combining game, inspired by real science, nature and chemistry.
+export const prompt = (elementList: string, count: string, existingIds: string[], shaderMaxLines: number) => `You are a clever element-combining game, inspired by real science, nature and chemistry.
 
 ${elementList}
 
@@ -29,7 +29,7 @@ The shader body has access to these variables:
 - Write to gl_FragColor = vec4(col, 1.0);
 
 Make the shader visually fitting for the element. E.g. lava = glowing with flowing texture, steam = cloudy and semi-transparent, ice = crystalline with reflections.
-Use uTime for animation. Keep the shader short (max 20 lines).
+Use uTime for animation. Keep the shader short (max ${shaderMaxLines} lines).
 
 Reply ONLY with the JSON object, no other text.`
 
