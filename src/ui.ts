@@ -42,8 +42,8 @@ export class GameUI {
     const elements = this.store.getAll()
     this.container.innerHTML = `
       <div class="inventory-header">
-        <div class="inventory-toggle">${this.gridExpanded ? '▾' : '▸'} Elementen <span class="inventory-count">(${elements.length})</span></div>
-        <button class="load-cache-btn">Laad alles</button>
+        <div class="inventory-toggle">${this.gridExpanded ? '▾' : '▸'} Elements <span class="inventory-count">(${elements.length})</span></div>
+        <button class="load-cache-btn">Load all</button>
       </div>
       <div class="inventory-grid ${this.gridExpanded ? 'expanded' : 'collapsed'}">
         ${elements.map((el) => this.renderElement(el)).join('')}
@@ -54,7 +54,7 @@ export class GameUI {
         <div class="combine-slot">${this.selected[1] ? this.renderSlot(this.selected[1]) : '<span class="empty">?</span>'}</div>
         <span class="combine-plus">+</span>
         <div class="combine-slot">${this.selected[2] ? this.renderSlot(this.selected[2]) : '<span class="empty">?</span>'}</div>
-        <button class="combine-btn" ${this.selected.length < 2 ? 'disabled' : ''}>Combineer</button>
+        <button class="combine-btn" ${this.selected.length < 2 ? 'disabled' : ''}>Combine</button>
       </div>
     `
 
@@ -122,10 +122,10 @@ export class GameUI {
   private async loadCacheElements(): Promise<void> {
     const btn = this.container.querySelector('.load-cache-btn') as HTMLButtonElement
     btn.disabled = true
-    btn.textContent = 'Laden...'
+    btn.textContent = 'Loading...'
     try {
       const elements = await fetchCacheElements()
-      elements.sort((a, b) => a.name.localeCompare(b.name, 'nl'))
+      elements.sort((a, b) => a.name.localeCompare(b.name, 'en'))
       for (const el of elements) {
         this.store.add(el)
       }
@@ -133,7 +133,7 @@ export class GameUI {
       this.showError(String(err))
     }
     btn.disabled = false
-    btn.textContent = 'Laad alles'
+    btn.textContent = 'Load all'
   }
 
   private async doCombine(): Promise<void> {
@@ -142,15 +142,15 @@ export class GameUI {
     const elements = [...this.selected]
     const btn = this.container.querySelector('.combine-btn') as HTMLButtonElement
     btn.disabled = true
-    btn.textContent = 'Bezig...'
+    btn.textContent = 'Working...'
 
-    // Start de 3D animatie
+    // Start the 3D animation
     this.onCombineStart?.(elements.map((e) => e.id))
 
     try {
       const result = await combineElements(...elements)
 
-      // Trigger flash + wacht tot die klaar is (result meegeven zodat store.add in de animatie-flow zit)
+      // Trigger flash + wait until it's done (pass result so store.add is in the animation flow)
       await new Promise<void>((resolve) => {
         this.onCombineEnd?.(result)
         setTimeout(resolve, 1200)
@@ -161,9 +161,9 @@ export class GameUI {
       this.render()
     } catch (err) {
       this.onCombineEnd?.()
-      console.log('Combinatie mislukt:', err)
+      console.log('Combination failed:', err)
       btn.disabled = false
-      btn.textContent = 'Combineer'
+      btn.textContent = 'Combine'
     }
   }
 
@@ -261,16 +261,16 @@ export class GameUI {
           <div class="info-title">${element.name}</div>
         </div>
         <div class="info-image-container" style="display:none"><img class="info-image" alt="${element.name}" /></div>
-        ${element.description ? `<p class="info-description">${element.description}</p>` : '<p class="info-description" style="color:#64748b">Geen beschrijving beschikbaar.</p>'}
-        ${element.wikipediaUrl ? `<a class="info-wiki-link" href="${element.wikipediaUrl}" target="_blank" rel="noopener noreferrer">Bekijk op Wikipedia &rarr;</a>` : ''}
-        <button class="result-close">Sluiten</button>
+        ${element.description ? `<p class="info-description">${element.description}</p>` : '<p class="info-description" style="color:#64748b">No description available.</p>'}
+        ${element.wikipediaUrl ? `<a class="info-wiki-link" href="${element.wikipediaUrl}" target="_blank" rel="noopener noreferrer">View on Wikipedia &rarr;</a>` : ''}
+        <button class="result-close">Close</button>
       </div>
     `
 
     const cubeContainer = this.resultOverlay.querySelector('.info-cube-container') as HTMLElement
     this.startMiniScene(cubeContainer, element)
 
-    // Haal afbeelding op via Wikipedia REST API
+    // Fetch image via Wikipedia REST API
     if (element.wikipediaUrl) {
       this.fetchWikiImage(element.wikipediaUrl).then((imageUrl) => {
         if (imageUrl) {
@@ -312,7 +312,7 @@ export class GameUI {
     this.resultOverlay.style.display = 'flex'
     this.resultOverlay.innerHTML = `
       <div class="result-card error">
-        <div class="result-name">Fout</div>
+        <div class="result-name">Error</div>
         <p>${msg}</p>
         <button class="result-close">OK</button>
       </div>

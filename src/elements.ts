@@ -5,64 +5,64 @@ const STARTER_ELEMENTS: Element[] = [
     id: 'water',
     name: 'Water',
     color: '#3b82f6',
-    description: 'Water is een transparante, geurloze vloeistof die essentieel is voor al het leven op aarde. Het bestaat uit twee waterstofatomen en één zuurstofatoom (H₂O).',
-    wikipediaUrl: 'https://nl.wikipedia.org/wiki/Water',
+    description: 'Water is a transparent, odorless liquid that is essential for all life on Earth. It consists of two hydrogen atoms and one oxygen atom (H₂O).',
+    wikipediaUrl: 'https://en.wikipedia.org/wiki/Water',
   },
   {
     id: 'fire',
-    name: 'Vuur',
+    name: 'Fire',
     color: '#ef4444',
-    description: 'Vuur is een snelle oxidatiereactie die licht en warmte produceert. Het is een van de vier klassieke elementen en was cruciaal voor de menselijke beschaving.',
-    wikipediaUrl: 'https://nl.wikipedia.org/wiki/Vuur',
+    description: 'Fire is a rapid oxidation reaction that produces light and heat. It is one of the four classical elements and was crucial for human civilization.',
+    wikipediaUrl: 'https://en.wikipedia.org/wiki/Fire',
   },
   {
     id: 'gravel',
-    name: 'Grind',
+    name: 'Gravel',
     color: '#9ca3af',
-    description: 'Grind is een mengsel van afgeronde steentjes, ontstaan door verwering en erosie. Het wordt veel gebruikt in de bouw en als verharding.',
-    wikipediaUrl: 'https://nl.wikipedia.org/wiki/Grind',
+    description: 'Gravel is a mixture of rounded stones, formed by weathering and erosion. It is widely used in construction and as paving material.',
+    wikipediaUrl: 'https://en.wikipedia.org/wiki/Gravel',
   },
   {
     id: 'sand',
-    name: 'Zand',
+    name: 'Sand',
     color: '#d4b483',
-    description: 'Zand is een korrelig materiaal bestaande uit fijne gesteentedeeltjes, vooral kwarts. Het komt voor op stranden, in woestijnen en op de zeebodem.',
-    wikipediaUrl: 'https://nl.wikipedia.org/wiki/Zand',
+    description: 'Sand is a granular material consisting of fine rock particles, mainly quartz. It is found on beaches, in deserts, and on the seabed.',
+    wikipediaUrl: 'https://en.wikipedia.org/wiki/Sand',
   },
   {
     id: 'gold',
-    name: 'Goud',
+    name: 'Gold',
     color: '#d9a926',
-    description: 'Goud is een zacht, glanzend edelmetaal met atoomnummer 79. Het wordt al duizenden jaren gebruikt als sieraad en betaalmiddel vanwege zijn zeldzaamheid en schoonheid.',
-    wikipediaUrl: 'https://nl.wikipedia.org/wiki/Goud',
+    description: 'Gold is a soft, shiny precious metal with atomic number 79. It has been used for thousands of years as jewelry and currency due to its rarity and beauty.',
+    wikipediaUrl: 'https://en.wikipedia.org/wiki/Gold',
   },
   {
     id: 'wood',
-    name: 'Hout',
+    name: 'Wood',
     color: '#8B5E3C',
-    description: 'Hout is een natuurlijk materiaal dat wordt gewonnen uit bomen. Het wordt al eeuwenlang gebruikt voor constructie, meubels en brandstof.',
-    wikipediaUrl: 'https://nl.wikipedia.org/wiki/Hout',
+    description: 'Wood is a natural material harvested from trees. It has been used for centuries for construction, furniture, and fuel.',
+    wikipediaUrl: 'https://en.wikipedia.org/wiki/Wood',
   },
   {
     id: 'crystal',
-    name: 'Kristal',
+    name: 'Crystal',
     color: '#a78bfa',
-    description: 'Kristal is een vaste stof waarvan de atomen in een geordend, herhalend patroon zijn gerangschikt. Kristallen komen voor in mineralen, edelstenen en ijs.',
-    wikipediaUrl: 'https://nl.wikipedia.org/wiki/Kwarts',
+    description: 'A crystal is a solid whose atoms are arranged in an ordered, repeating pattern. Crystals are found in minerals, gemstones, and ice.',
+    wikipediaUrl: 'https://en.wikipedia.org/wiki/Crystal',
   },
   {
     id: 'quartz',
-    name: 'Kwarts',
+    name: 'Quartz',
     color: '#e8dcc8',
-    description: 'Kwarts is een van de meest voorkomende mineralen op aarde. Het is opgebouwd uit silicium en zuurstof (SiO₂) en komt voor in vele varianten zoals bergkristal, amethist en rozenkwarts.',
-    wikipediaUrl: 'https://nl.wikipedia.org/wiki/Kwarts',
+    description: 'Quartz is one of the most common minerals on Earth. It is composed of silicon and oxygen (SiO₂) and comes in many varieties such as rock crystal, amethyst, and rose quartz.',
+    wikipediaUrl: 'https://en.wikipedia.org/wiki/Quartz',
   },
   {
     id: 'ore',
-    name: 'Erts',
+    name: 'Ore',
     color: '#8b4513',
-    description: 'Erts is een natuurlijk gesteente dat metalen of waardevolle mineralen bevat. Door smelten en raffineren worden hieruit metalen zoals ijzer, koper en goud gewonnen.',
-    wikipediaUrl: 'https://nl.wikipedia.org/wiki/IJzererts',
+    description: 'Ore is a natural rock that contains metals or valuable minerals. Through smelting and refining, metals such as iron, copper, and gold are extracted from it.',
+    wikipediaUrl: 'https://en.wikipedia.org/wiki/Ore',
   },
 ]
 
@@ -71,7 +71,7 @@ export class ElementStore {
   private listeners: Array<() => void> = []
 
   getAll(): Element[] {
-    return [...this.elements].sort((a, b) => a.name.localeCompare(b.name, 'nl'))
+    return [...this.elements].sort((a, b) => a.name.localeCompare(b.name, 'en'))
   }
 
   findById(id: string): Element | undefined {

@@ -3,7 +3,7 @@ import { registerShader } from './shaders'
 
 export async function fetchCacheElements(): Promise<Element[]> {
   const response = await fetch('/api/cache-elements')
-  if (!response.ok) throw new Error('Cache ophalen mislukt')
+  if (!response.ok) throw new Error('Failed to fetch cache')
   const data: Array<Element & { shader?: string }> = await response.json()
   for (const el of data) {
     if (el.shader) registerShader(el.id, el.shader)
@@ -12,7 +12,7 @@ export async function fetchCacheElements(): Promise<Element[]> {
 }
 
 export async function combineElements(...elements: Element[]): Promise<Element> {
-  // Minimale vertraging zodat de combine-animatie kan afspelen (ook bij cached responses)
+  // Minimum delay so the combine animation can play (even for cached responses)
   const [response] = await Promise.all([
     fetch('/api/combine', {
       method: 'POST',
@@ -24,7 +24,7 @@ export async function combineElements(...elements: Element[]): Promise<Element> 
 
   if (!response.ok) {
     const error = await response.text()
-    throw new Error(`Combinatie mislukt: ${error}`)
+    throw new Error(`Combination failed: ${error}`)
   }
 
   const data: Element & { shader?: string } = await response.json()
