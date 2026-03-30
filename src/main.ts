@@ -24,12 +24,15 @@ camera.position.set(0, 0, 8)
 // Zoom (scroll wheel, toward pointer)
 const zoomMin = 3
 const zoomMax = 20
+const defaultZoom = 8
 let zoomTarget = camera.position.z
 let panTargetX = camera.position.x
 let panTargetY = camera.position.y
+let zoomLocked = false
 
 window.addEventListener('wheel', (e) => {
   e.preventDefault()
+  if (zoomLocked) return
   const prevZoom = zoomTarget
   zoomTarget = THREE.MathUtils.clamp(zoomTarget + e.deltaY * 0.01, zoomMin, zoomMax)
   const zoomDelta = zoomTarget - prevZoom
@@ -176,11 +179,11 @@ function layoutCubes(): void {
     )
     cubeGroup.add(group)
 
-    // Start fade-in for elements that were just combined
+    // Start zoom-out animation for elements that were just combined
     if (fadeInIds.has(el.id)) {
       fadeInStartTimes.set(el.id, now)
-      group.scale.set(0, 0, 0)
-      // Also set alpha to 0 so the cube isn't visible before the first animate frame
+      group.scale.set(2.5, 2.5, 2.5)
+      // Start with alpha 0 so the cube fades in quickly
       const fadeMesh = group.children.find((c) => c instanceof THREE.Mesh && !c.userData['isOutline']) as THREE.Mesh | undefined
       if (fadeMesh) {
         const mat = fadeMesh.material as THREE.ShaderMaterial
@@ -189,19 +192,22 @@ function layoutCubes(): void {
       const fadeLabel = group.children.find((c) => c instanceof CSS2DObject) as CSS2DObject | undefined
       if (fadeLabel) fadeLabel.element.style.opacity = '0'
     } else if (fadeInStartTimes.has(el.id)) {
-      // Preserve ongoing fade-in after layout rebuild
+      // Preserve ongoing zoom-out after layout rebuild
       const fadeStart = fadeInStartTimes.get(el.id)!
       const t = Math.min(1, (now - fadeStart) / FADE_IN_DURATION)
       if (t < 1) {
-        const eased = t * t * (3 - 2 * t) // smoothstep (matches animate loop)
-        group.scale.set(eased, eased, eased)
+        const p = 0.4
+        const eased = t === 0 ? 0 : Math.pow(2, -10 * t) * Math.sin((t - p / 4) * (2 * Math.PI) / p) + 1
+        const scale = 1 + (1 - eased) * 1.5
+        const alpha = Math.min(1, t * 4)
+        group.scale.set(scale, scale, scale)
         const fadeMesh = group.children.find((c) => c instanceof THREE.Mesh && !c.userData['isOutline']) as THREE.Mesh | undefined
         if (fadeMesh) {
           const mat = fadeMesh.material as THREE.ShaderMaterial
-          if (mat.uniforms?.['uAlpha']) mat.uniforms['uAlpha'].value = eased
+          if (mat.uniforms?.['uAlpha']) mat.uniforms['uAlpha'].value = alpha
         }
         const fadeLabel = group.children.find((c) => c instanceof CSS2DObject) as CSS2DObject | undefined
-        if (fadeLabel) fadeLabel.element.style.opacity = String(eased)
+        if (fadeLabel) fadeLabel.element.style.opacity = String(alpha)
       } else {
         fadeInStartTimes.delete(el.id)
       }
@@ -352,6 +358,12 @@ function startCombineAnimation(elementIds: string[]): void {
     done: false,
   }
 
+  // Move camera to center and lock zoom
+  zoomLocked = true
+  zoomTarget = defaultZoom
+  panTargetX = 0
+  panTargetY = 0
+
   // Particles start 2 seconds after combine start
   particleEmitTime = combineAnim.startTime + 1
 }
@@ -370,6 +382,7 @@ function endCombineAnimation(newResult?: Element): void {
     nonCombineOpacity = 0
     particleEmitTime = 0
     particleSystem.visible = false
+    zoomLocked = false
 
     // Add new result if it doesn't exist yet
     if (newResult && !store.findById(newResult.id)) {
@@ -393,6 +406,7 @@ const raycaster = new THREE.Raycaster()
 const mouse = new THREE.Vector2()
 let hoveredGroup: THREE.Group | null = null
 const hoverScales = new Map<THREE.Group, number>() // 0 = normal, 1 = fully hovered
+const meshSpinSpeeds = new Map<THREE.Mesh, { sx: number; sy: number }>()
 const hoverSpeed = 5 // speed of the transition
 
 renderer.domElement.addEventListener('mousemove', (event) => {
@@ -560,12 +574,7 @@ function animate(): void {
       cube.position.y = origPos.y + (centerY - origPos.y) * eased
       cube.position.z = origPos.z * (1 - eased) + eased * 3
 
-      // Make the cubes spin faster around their own axis
-      const mesh = cube.children.find((c) => c instanceof THREE.Mesh && !c.userData['isOutline']) as THREE.Mesh | undefined
-      if (mesh) {
-        mesh.rotation.x += 0.02 * combineAnim!.speed
-        mesh.rotation.y += 0.015 * combineAnim!.speed
-      }
+      // Spin is handled by the smooth spin speed lerp below
 
       // Hide label during animation
       const label = cube.children.find((c) => c instanceof CSS2DObject) as CSS2DObject | undefined
@@ -586,17 +595,35 @@ function animate(): void {
     const outline = g.children.find((c) => c instanceof THREE.Mesh && c.userData['isOutline']) as THREE.Mesh | undefined
 
     // Skip rotation/hover for cubes in combine animation
+    const elementId = g.userData['elementId'] as string
     const isCombining = combineAnim?.cubes.includes(g)
 
     if (mesh) {
-      if (!combineAnim) {
-        mesh.rotation.x += 0.005
-        mesh.rotation.y += 0.001
-      }
       const mat = mesh.material as THREE.ShaderMaterial
       if (mat.uniforms?.['uTime']) {
         mat.uniforms['uTime'].value = elapsed
       }
+      // Smooth spin speed transition (fast → slow, always incremental)
+      const spinState = meshSpinSpeeds.get(mesh) ?? { sx: 0.005, sy: 0.001 }
+      const targetSX = combineAnim && isCombining ? 0.02 * combineAnim.speed : 0.005
+      const targetSY = combineAnim && isCombining ? 0.015 * combineAnim.speed : 0.001
+      spinState.sx += (targetSX - spinState.sx) * 0.03
+      spinState.sy += (targetSY - spinState.sy) * 0.03
+      meshSpinSpeeds.set(mesh, spinState)
+      // Decaying extra spin during fade-in (additive, no direction changes)
+      let extraSX = 0
+      let extraSY = 0
+      const spin = spinTargets.get(elementId)
+      const fadeStartSpin = fadeInStartTimes.get(elementId)
+      if (spin && fadeStartSpin !== undefined) {
+        const absNow = performance.now() / 1000
+        const t = Math.min(1, (absNow - fadeStartSpin) / FADE_IN_DURATION)
+        const decay = (1 - t) * (1 - t) * (1 - t) // cubic decay → 0 at t=1
+        extraSX = spin.sx * decay
+        extraSY = spin.sy * decay
+      }
+      mesh.rotation.x += spinState.sx + extraSX
+      mesh.rotation.y += spinState.sy + extraSY
     }
 
     // Outline sync met mesh rotatie en selectie
@@ -610,28 +637,29 @@ function animate(): void {
       }
     }
 
-    // Fade-in animation (opacity + scale) — lookup by elementId so it survives layout rebuilds
-    const elementId = g.userData['elementId'] as string
+    // Zoom-out animation (scale large→1 with elastic ease) — lookup by elementId so it survives layout rebuilds
     const fadeStart = fadeInStartTimes.get(elementId)
     if (fadeStart !== undefined) {
       const absNow = performance.now() / 1000
       const t = Math.max(0, Math.min(1, (absNow - fadeStart) / FADE_IN_DURATION))
-      const eased = t * t * (3 - 2 * t) // smoothstep
-      g.scale.set(eased, eased, eased)
+      // Elastic ease-out: overshoots slightly then settles
+      const p = 0.4
+      const eased = t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t - p / 4) * (2 * Math.PI) / p) + 1
+      // Scale from 2.5 down to 1
+      const scale = 1 + (1 - eased) * 1.5
+      // Opacity fades in quickly
+      const alpha = Math.min(1, t * 4)
+      g.scale.set(scale, scale, scale)
       if (mesh) {
         const mat = mesh.material as THREE.ShaderMaterial
-        mat.uniforms['uAlpha']!.value = eased
-        const spin = spinTargets.get(elementId)
-        if (spin) {
-          mesh.rotation.x = eased * spin.rx
-          mesh.rotation.y = eased * spin.ry
-        }
+        mat.uniforms['uAlpha']!.value = alpha
       }
       const lbl = g.children.find((c) => c instanceof CSS2DObject) as CSS2DObject | undefined
-      if (lbl) (lbl.element as HTMLElement).style.opacity = String(eased)
+      if (lbl) (lbl.element as HTMLElement).style.opacity = String(alpha)
       if (t >= 1) {
         fadeInStartTimes.delete(elementId)
         spinTargets.delete(elementId)
+        g.scale.set(1, 1, 1)
         if (mesh) {
           const mat = mesh.material as THREE.ShaderMaterial
           mat.uniforms['uAlpha']!.value = 1
