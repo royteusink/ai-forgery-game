@@ -1,10 +1,11 @@
-export const prompt = (elementList: string, count: string) => `You are a clever element-combining game, inspired by real science, nature and chemistry.
+export const prompt = (elementList: string, count: string, existingIds: string[]) => `You are a clever element-combining game, inspired by real science, nature and chemistry.
 
 ${elementList}
 
 Figure out what would REALLY be created if you combine these ${count}. Think about chemistry, physics, biology or geology.
 - NEVER glue two or three names together (e.g. "goldglass" or "firewater" is FORBIDDEN).
 - The result must be a real existing material, substance, phenomenon or concept.
+- The result MUST be something NEW. These IDs already exist and MUST NOT be used: ${existingIds.join(', ')}
 - Examples: Water + Fire = Steam, Sand + Fire + Gravel = Concrete, Gold + Fire + Sand = Jewel.
 - Be scientific but also surprising and fun.
 Provide the result as a JSON object with exactly these fields:

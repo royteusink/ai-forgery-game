@@ -2,7 +2,7 @@ import * as en_US from './en_US'
 import * as nl_NL from './nl_NL'
 
 export interface PromptLocale {
-  prompt: (elementList: string, count: string) => string
+  prompt: (elementList: string, count: string, existingIds: string[]) => string
   countWord: (n: number) => string
   validationError: string
 }

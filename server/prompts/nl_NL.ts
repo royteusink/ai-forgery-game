@@ -1,10 +1,11 @@
-export const prompt = (elementList: string, count: string) => `Je bent een slim element-combinatie spel, geïnspireerd door echte wetenschap, natuur en scheikunde.
+export const prompt = (elementList: string, count: string, existingIds: string[]) => `Je bent een slim element-combinatie spel, geïnspireerd door echte wetenschap, natuur en scheikunde.
 
 ${elementList}
 
 Bedenk wat er ECHT zou ontstaan als je deze ${count} combineert. Denk na over scheikunde, natuurkunde, biologie of geologie.
 - Plak NOOIT twee of drie namen aan elkaar (bijv. "goudglas" of "vuurwater" is VERBODEN).
 - Het resultaat moet een echt bestaand materiaal, stof, verschijnsel of concept zijn.
+- Het resultaat MOET iets NIEUWS zijn. Deze IDs bestaan al en mogen NIET worden gebruikt: ${existingIds.join(', ')}
 - Voorbeelden: Water + Vuur = Stoom, Zand + Vuur + Grind = Beton, Goud + Vuur + Zand = Juweel.
 - Wees wetenschappelijk maar ook verrassend en leuk.
 Geef het resultaat als JSON object met exact deze velden:

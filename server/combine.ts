@@ -35,11 +35,18 @@ export function handleCombine(cache: Cache, lang: string) {
 
     const elementList = elements.map((e, i) => `Element ${i + 1}: ${e}`).join('\n')
     const count = countWord(elements.length)
+    const existingIds = [...new Set(
+      Object.entries(cache)
+        .filter(([k]) => elements.some((el) => k.includes(el)))
+        .map(([, e]) => e.id),
+    )]
+
+    console.log(elementList, existingIds);
 
     try {
       const result = await new Promise<string>((resolve, reject) => {
         const proc = spawn('claude', [
-          '-p', prompt(elementList, count),
+          '-p', prompt(elementList, count, existingIds),
           '--model', 'haiku',
           '--output-format', 'text',
         ], { timeout: 80000, stdio: ['pipe', 'pipe', 'pipe'] })
@@ -63,8 +70,11 @@ export function handleCombine(cache: Cache, lang: string) {
       const jsonStr = result.replace(/^```(?:json)?\s*\n?/m, '').replace(/\n?```\s*$/m, '').trim()
       const parsed = JSON.parse(jsonStr)
 
-      cache[key] = parsed
-      saveCache(cache)
+      const isDuplicate = Object.values(cache).some((e) => e.id === parsed.id)
+      if (!isDuplicate) {
+        cache[key] = parsed
+        saveCache(cache)
+      }
 
       console.log(JSON.stringify(parsed, null, 2))
 
